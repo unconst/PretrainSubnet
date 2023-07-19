@@ -130,7 +130,7 @@ class DMiner:
         # Create wallet hotkey and coldkey.
         self.wallet = bt.wallet( config = self.config )
         self.wallet.create_if_non_existent()
-        bt.logging.debug( 'wallet:', self.wallet )
+        bt.logging.debug( 'wallet:', self.wallet.hotkey.ss58_address )
 
         # Initialize Bittensor objects.
         self.subtensor = bt.subtensor( chain_endpoint = CHAIN_ENDPOINT )
@@ -241,14 +241,25 @@ class DMiner:
         # Query all miners for their model weights.
         state_dicts = self.dendrite.query( random_peer_axons, GetWeights(), timeout = 5 )
 
-        # Discard any failed responses.
-        state_dicts = [s for s in state_dicts if s is not None and s != {} ]
+        # Get the keys of the state dictionary (i.e., the parameter names)
+        keys = self.model.state_dict().keys()
 
-        # Compute average weights across all miners.
-        average_state_dict = {
-            k: sum(d[k] for d in state_dicts) / len(state_dicts)
-            for k in state_dicts[0] if k is not None
-        }
+        # Create a new state dictionary for the averaged weights
+        avg_state_dict = {}
+
+        for key in keys:
+
+            # Check if the state dictionaries have the key and are not None
+            valid_state_dicts = [state_dict for state_dict in state_dicts if state_dict is not None and key in state_dict]
+
+            if not valid_state_dicts:
+                continue
+
+            # stack the weights along a new dimension, and take their mean
+            avg_weight = torch.stack([state_dict[key] for state_dict in valid_state_dicts]).mean(dim=0)
+
+            # assign the average weight to the new state dictionary
+            avg_state_dict[key] = avg_weight
 
         # Load the averaged weights into the local model.
         self.model.load_state_dict(average_state_dict)
