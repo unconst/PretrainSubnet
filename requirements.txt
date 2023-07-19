@@ -1,0 +1,3 @@
+bittensor==6.0.0
+torchvision
+chardet
