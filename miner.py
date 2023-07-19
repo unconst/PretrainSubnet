@@ -89,6 +89,9 @@ class DMiner:
         self.criterion = nn.CrossEntropyLoss()
         self.saved_grads = None
 
+        # Send model to device
+        self.model.to(self.device)
+
         # Training hyper-parameters
         self.epoch_length = 2
         self.batch_size = 1000
@@ -116,11 +119,12 @@ class DMiner:
         grads = self.dendrite.query( self.metagraph.axons, GetGrads(), timeout = 5 )
 
         # Apply all grads to the model.
-        for axon, grads_dict in list(zip(self.metagraph.axons, grads)):
+        for _, grads_dict in list(zip(self.metagraph.axons, grads)):
             # Loop over named parameters of the model
             for name, param in self.model.named_parameters():
                 # If there's a corresponding gradient in your dictionary, apply it
                 if name in grads_dict:
+                    grads_dict[name] = grads_dict[name].to(self.device)
                     if param.grad is not None:
                         param.grad += grads_dict[name]
                     else:
