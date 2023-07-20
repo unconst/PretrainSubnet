@@ -278,7 +278,7 @@ class DMiner:
             avg_state_dict[key] = avg_weight
 
         # Load the averaged weights into the local model.
-        if avg_state_dict != {}
+        if avg_state_dict != {}:
             self.model.load_state_dict(avg_state_dict)
         bt.logging.success(f'Successfully averaged {len(state_dicts)} weights.') 
         wandb.log({ 'successfully_average_weights': 1.0 })
