@@ -1,1 +1,0 @@
-{"average_weights_event": 1.0, "_timestamp": 1689870231.169493, "_runtime": 68.07249093055725, "_step": 5, "n_online": 1, "reduce_gradients_event": 1.0, "block": 801026, "training_step": 1, "train_loss": 4.41360330581665, "_wandb": {"runtime": 83}}
