@@ -2,3 +2,4 @@ git+https://github.com/opentensor/bittensor.git@revolution
 torchvision
 chardet
 wandb
+datasets
