@@ -33,10 +33,10 @@ class GetGrads( bt.Synapse ):
     It subclasses the bittensor Synapse.
     """
     # Gradients per variable in the model.
-    grads: Optional[typing.Dict[str, bt.Tensor]] = None
+    grads: typing.Optional[typing.Dict[str, bt.Tensor]] = None
 
     # Define deserialization function
-    def deserialize( self ) -> dict[ str, torch.FloatTensor ]:
+    def deserialize( self ) -> typing.Dict[ str, torch.FloatTensor ]:
         """
         Deserialize method converts the Bittensor gradients to Pytorch tensors.
 
@@ -58,7 +58,7 @@ class GetWeights( bt.Synapse ):
     weights: Optional[ typing.Dict[ str, bt.Tensor ] ] = None
 
     # Define deserialization function
-    def deserialize( self ) -> dict[ str, torch.FloatTensor ]:
+    def deserialize( self ) -> typing.Dict[ str, torch.FloatTensor ]:
         """
         Deserialize method converts the Bittensor weights to Pytorch tensors.
 
