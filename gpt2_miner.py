@@ -204,7 +204,7 @@ class DMiner:
         bt.logging.info(f'Reducing grads with uids: {self.get_online_uids()}')
 
         # Get the saved grads from everyone.
-        grad_dicts = self.dendrite.query( online_axons, GetGrads(), timeout = 5 )
+        grad_dicts = self.dendrite.query( online_axons, GetGrads() )
         if not isinstance(grad_dicts, list ): grad_dicts = [grad_dicts]
 
         # Create a new state dictionary for the averaged grads
@@ -261,7 +261,7 @@ class DMiner:
         bt.logging.info(f'Averaging weights with uids: {self.get_online_uids()}')
 
         # Query all miners for their model weights.
-        state_dicts = self.dendrite.query( online_axons, GetWeights(), timeout = 5)
+        state_dicts = self.dendrite.query( online_axons, GetWeights() )
         if not isinstance( state_dicts, list ): state_dicts = [state_dicts]
         
         # Create a new state dictionary for the averaged weights
