@@ -75,30 +75,27 @@ def _merge_grads( self, axons: typing.List[ bt.axon ]  ):
         is_valid = True
 
         if grad_dict is None or not isinstance(grad_dict, dict) or len(grad_dict.keys()) == 0:
+            bt.logging.warning(f'Invalid grad_dict: Is None, empty or not a dict: {state_dict}')
             is_valid = False; continue
     
         for key in grad_dict.keys():
             if key not in self.model.state_dict().keys():
-                bt.logging.warning('Invalid grad_dict: Keys do not match the model.')
+                bt.logging.warning(f'Invalid grad_dict: Keys do not match the model: {key}')
                 is_valid = False; break
 
             elif grad_dict[key] is None:
-                bt.logging.trace(grad_dict)
                 bt.logging.warning(f'Invalid grad_dict: grad is none: {grad_dict[key]}')
                 is_valid = False; break
 
             elif not isinstance(grad_dict[key], (torch.FloatTensor, torch.cuda.FloatTensor)):
-                bt.logging.trace(grad_dict)
                 bt.logging.warning(f'Invalid grad_dict: grads are not float tensor: {grad_dict[key]}')
                 is_valid = False; break
 
             elif not torch.all(torch.isfinite(grad_dict[key])):
-                bt.logging.trace(grad_dict)
                 bt.logging.warning(f'Invalid grad_dict: Grads are not finite: {grad_dict[key]}')
                 is_valid = False; break
 
             elif torch.tensor(grad_dict[key]).shape != torch.tensor(self.model.state_dict()[key]).shape:
-                bt.logging.trace(grad_dict)
                 bt.logging.warning(f"Invalid grad_dict: Weights dimensions do not match the model: {grad_dict[key].shape}")
                 is_valid = False; break
 

@@ -77,11 +77,12 @@ def _merge_weights(self, axons: typing.List[ bt.axon ] ):
         is_valid = True
 
         if state_dict is None or not isinstance(state_dict, dict) or len(state_dict.keys()) == 0:
+            bt.logging.warning(f'Invalid state_dict: Is None, empty or not a dict: {state_dict}')
             is_valid = False; continue
     
         for key in state_dict.keys():
             if key not in self.model.state_dict().keys():
-                bt.logging.warning('Invalid state_dict: Keys do not match the model.')
+                bt.logging.warning(f'Invalid state_dict: Keys do not match the model: {key}')
                 is_valid = False; break
 
             elif state_dict[key] is None:
