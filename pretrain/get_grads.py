@@ -41,12 +41,18 @@ def get_grads( self, synapse: GetGrads ) -> GetGrads:
 
 
 def merge_grads( self ):
+
+    online_axons = [self.metagraph.axons[uid] for uid in get_online_uids( self )]
+    if len(online_axons) == 0:
+        raise Exception('There are no online uids to average gradients with.')
+    bt.logging.debug(f'Reducing grads with axons:\n {online_axons}')
+
     try:
-        merge_grads( self )
+        _merge_grads( self, online_axons )
     except Exception as e:
         bt.logging.error( f'Failed to merge grads with error {e}')
 
-def _merge_grads( self ):
+def _merge_grads( self, axons: typing.List[ bt.axon ]  ):
     """
     Function to average the gradients of a model across several online axons.
     """
@@ -55,13 +61,8 @@ def _merge_grads( self ):
     bt.logging.info('Reducing gradients.')
     self.wandb.log({'reduce_gradients_event': 1.0})
 
-    online_axons = [self.metagraph.axons[uid] for uid in self.get_online_uids()]
-    if len(online_axons) == 0:
-        raise Exception('There are no online uids to average gradients with.')
-    bt.logging.debug(f'Reducing grads with axons:\n {online_axons}')
-
     # Use the dendrite's query function to retrieve the gradients for the online axons
-    grad_dicts = self.dendrite.query(online_axons, GetGrads())
+    grad_dicts = self.dendrite.query( axons, GetGrads())
 
     # If the query function only returns one dictionary, wrap it in a list for the later iteration
     if not isinstance(grad_dicts, list):
@@ -169,7 +170,6 @@ class TestMergeGrads(unittest.TestCase):
         # Mock the necessary attributes for the instance
         self.instance.metagraph = MagicMock()
         self.instance.dendrite = MagicMock()
-        self.instance.get_online_uids = MagicMock()
         self.instance.model = MagicMock()
         self.instance.wandb = MagicMock()
         self.instance.device = 'cpu'
@@ -180,25 +180,14 @@ class TestMergeGrads(unittest.TestCase):
         self.instance.model.named_parameters.return_value = [ ('fc1.weight', MagicMock()), ('fc2.weight', MagicMock()) ]
         for name, param in self.instance.model.named_parameters.return_value:
             param.grad = torch.randn(3, 3)
-
-    def test_no_online_axons(self):
-        # Set up the mock to return an empty list of online uids
-        self.instance.get_online_uids.return_value = []
-
-        # None to average with
-        with pytest.raises(Exception) as excinfo:
-            _merge_grads( self.instance )
-        assert "There are no online uids to average gradients with." in str(excinfo.value)
     
     def test_merge_valid_grad_dict(self):
-        # Set up the mock to return a list of online uids
-        self.instance.get_online_uids.return_value = ['uid1']
 
         # Set up the mock to return a state_dict that does not include the weights for 'fc1'
         self.instance.dendrite.query.return_value = {'fc1.weight': torch.randn(3, 3), 'fc2.weight': torch.randn(3, 3)}
 
         # Valid grad dict.
-        _merge_grads( self.instance )
+        _merge_grads( self.instance, None )
 
         # Calculate the expected averaged grads
         expected_grads = {
@@ -219,8 +208,6 @@ class TestMergeGrads(unittest.TestCase):
             self.assertTrue(torch.allclose(expected_grads[name], param.grad), msg=f"updated weights for {key} are incorrect")
 
     def test_merge_valid_grad_dict_multiple(self):
-        # Set up the mock to return a list of online uids
-        self.instance.get_online_uids.return_value = ['uid1']
 
         # Set up the mock to return a state_dict that does not include the weights for 'fc1'
         self.instance.dendrite.query.return_value = [
@@ -229,7 +216,7 @@ class TestMergeGrads(unittest.TestCase):
         ]
 
         # Valid grad dict.
-        _merge_grads( self.instance )
+        _merge_grads( self.instance, None )
 
         # Calculate the expected averaged grads
         expected_grads = {
@@ -254,8 +241,6 @@ class TestMergeGrads(unittest.TestCase):
 
 
     def test_merge_valid_grad_dict_multiple_some_wrong(self):
-        # Set up the mock to return a list of online uids
-        self.instance.get_online_uids.return_value = ['uid1']
 
         # Set up the mock to return a state_dict that does not include the weights for 'fc1'
         self.instance.dendrite.query.return_value = [
@@ -267,7 +252,7 @@ class TestMergeGrads(unittest.TestCase):
         ]
 
         # Valid grad dict.
-        _merge_grads( self.instance )
+        _merge_grads( self.instance, None )
 
         # Calculate the expected averaged grads
         expected_grads = {
@@ -291,75 +276,57 @@ class TestMergeGrads(unittest.TestCase):
             self.assertTrue(torch.allclose(expected_grads[name], param.grad), msg=f"updated weights for {key} are incorrect")
 
     def test_return_is_none(self):
-        # Set up the mock to return a list of online uids
-        self.instance.get_online_uids.return_value = ['uid1']
-
         # Set up the mock to return a state_dict that does not include the weights for 'fc1'
         self.instance.dendrite.query.return_value = None
 
         # No valid grad dicts.
         with pytest.raises(Exception) as excinfo:
-            _merge_grads( self.instance )
+            _merge_grads( self.instance, None )
         assert "There are no valid gradient dicts." in str(excinfo.value)
 
     def test_return_is_empty(self):
-        # Set up the mock to return a list of online uids
-        self.instance.get_online_uids.return_value = ['uid1']
-
         # Set up the mock to return a state_dict that does not include the weights for 'fc1'
         self.instance.dendrite.query.return_value = {}
 
         # No valid grad dicts.
         with pytest.raises(Exception) as excinfo:
-            _merge_grads( self.instance )
+            _merge_grads( self.instance, None )
         assert "There are no valid gradient dicts." in str(excinfo.value)
 
     def test_return_is_invalid_name(self):
-        # Set up the mock to return a list of online uids
-        self.instance.get_online_uids.return_value = ['uid1']
-
         # Set up the mock to return a state_dict that does not include the weights for 'fc1'
         self.instance.dendrite.query.return_value = {'fc1.weight': torch.randn(3, 3), 'fc2.weightkansdsa': torch.randn(3, 3)}
 
         # No valid grad dicts.
         with pytest.raises(Exception) as excinfo:
-            _merge_grads( self.instance )
+            _merge_grads( self.instance, None )
         assert "There are no valid gradient dicts." in str(excinfo.value)
 
     def test_return_is_invalid_none(self):
-        # Set up the mock to return a list of online uids
-        self.instance.get_online_uids.return_value = ['uid1']
-
         # Set up the mock to return a state_dict that does not include the weights for 'fc1'
         self.instance.dendrite.query.return_value = {'fc1.weight': torch.randn(3, 3), 'fc2.weightkansdsa': None}
 
         # No valid grad dicts.
         with pytest.raises(Exception) as excinfo:
-            _merge_grads( self.instance )
+            _merge_grads( self.instance, None )
         assert "There are no valid gradient dicts." in str(excinfo.value)
 
     def test_return_is_invalid_dtype(self):
-        # Set up the mock to return a list of online uids
-        self.instance.get_online_uids.return_value = ['uid1']
-
         # Set up the mock to return a state_dict that does not include the weights for 'fc1'
         self.instance.dendrite.query.return_value = {'fc1.weight': torch.randint(0, 10, (3, 3), dtype=torch.int64), 'fc2.weightkansdsa':  torch.randint(0, 10, (3, 3), dtype=torch.int64)}
 
         # No valid grad dicts.
         with pytest.raises(Exception) as excinfo:
-            _merge_grads( self.instance )
+            _merge_grads( self.instance, None )
         assert "There are no valid gradient dicts." in str(excinfo.value)
 
     def test_invalid_dimension(self):
-         # Set up the mock to return a list of online uids
-        self.instance.get_online_uids.return_value = ['uid1']
-
         # Set up the mock to return a state_dict that does not include the weights for 'fc1'
         self.instance.dendrite.query.return_value = {'fc1.weight': torch.randn(3, 4), 'fc2.weight': torch.randn(3, 3)}
 
         # No valid grad dicts.
         with pytest.raises(Exception) as excinfo:
-            _merge_grads( self.instance )
+            _merge_grads( self.instance, None )
         assert "There are no valid gradient dicts." in str(excinfo.value)
 
 

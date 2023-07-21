@@ -4,7 +4,6 @@ import bittensor as bt
 
 from . import config
 from . import dataset
-from . import model
 from . import misc
 from . import get_grads
 from . import get_weights
