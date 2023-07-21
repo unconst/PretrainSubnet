@@ -41,7 +41,6 @@ def get_weights( self, synapse: GetWeights ) -> GetWeights:
     synapse.weights = { name: bt.tensor( weight ) for name, weight in self.model.state_dict().items() }
     return synapse
 
-
 def merge_weights( self ):
 
     online_axons = [self.metagraph.axons[uid] for uid in get_online_uids( self )]
@@ -72,42 +71,35 @@ def _merge_weights(self, axons: typing.List[ bt.axon ] ):
         state_dicts = [state_dicts]
 
     # Filter out invalid grads.
-    valid_state_dicts = []
-    for state_dict in state_dicts:
-        is_valid = True
+    valid_state_dicts = [state_dict for state_dict in state_dicts if is_valid_state_dict( self, state_dict )] 
+    if len(valid_state_dicts) == 0: raise Exception('There are no valid weights dicts.')
+    self.wandb.log( {'n_valid_weight_dicts': len(valid_state_dicts)} )
 
-        if state_dict is None or not isinstance(state_dict, dict) or len(state_dict.keys()) == 0:
-            bt.logging.warning(f'Invalid state_dict: Is None, empty or not a dict: {state_dict}')
-            is_valid = False; continue
+    # Average the valid state dicts.
+    avg_state_dict = average_state_dicts( self, valid_state_dicts )
+    self.model.load_state_dict( avg_state_dict )
     
-        for key in state_dict.keys():
-            if key not in self.model.state_dict().keys():
-                bt.logging.warning(f'Invalid state_dict: Keys do not match the model: {key}')
-                is_valid = False; break
+    bt.logging.success(f'Successfully averaged {len(state_dicts)} weights.') 
+    self.wandb.log({ 'successfully_average_weights': 1.0 })
 
-            elif state_dict[key] is None:
-                bt.logging.warning(f'Invalid state_dict: Weight is none: {state_dict[key]}')
-                is_valid = False; break
+    # Sanity check delete memory
+    del state_dicts
+    del valid_state_dicts
+    del avg_state_dict
+    gc.collect()
 
-            elif not isinstance(state_dict[key], (torch.FloatTensor, torch.cuda.FloatTensor)):
-                bt.logging.warning(f'Invalid state_dict: Weights are not float tensor: {state_dict[key]}')
-                is_valid = False; break
+def average_state_dicts( self, valid_state_dicts: typing.List[typing.Dict[str, torch.Tensor]]) -> typing.Dict[str, torch.Tensor]:
+    """
+    This function averages the weights from a list of valid state dictionaries and 
+    returns a new state dictionary with the averaged weights.
 
-            elif not torch.all(torch.isfinite(state_dict[key])):
-                bt.logging.warning(f'Invalid state_dict: Weights are not finite: {state_dict[key]}')
-                is_valid = False; break
+    Parameters:
+        valid_state_dicts (list): A list of valid state dictionaries. Each state dictionary
+            typically contains mappings from layer names to corresponding parameters.
 
-            elif torch.tensor(state_dict[key]).shape != torch.tensor(self.model.state_dict()[key]).shape:
-                bt.logging.warning(f"Invalid state_dict: Weights dimensions do not match the model: {state_dict[key].shape}")
-                is_valid = False; break
-
-        if is_valid:
-            valid_state_dicts.append(state_dict)
-
-    if len(valid_state_dicts) == 0:
-        raise Exception('There are no valid weights dicts.')
-    self.wandb.log( {'valid_weight_dicts': len(valid_state_dicts)} )
-
+    Returns:
+        dict: A state dictionary with averaged weights.
+    """
     # Create a new state dictionary for the averaged weights.
     avg_state_dict = {}
 
@@ -134,19 +126,70 @@ def _merge_weights(self, axons: typing.List[ bt.axon ] ):
 
         del total_weights
         del num_weights
-
-    # If there are any averaged weights, load them into the local model.
-    if avg_state_dict:
-        self.model.load_state_dict(avg_state_dict)
     
-    bt.logging.success(f'Successfully averaged {len(state_dicts)} weights.') 
-    self.wandb.log({ 'successfully_average_weights': 1.0 })
+    return avg_state_dict
 
-    # Sanity check delete memory
-    del state_dicts
-    del valid_state_dicts
-    del avg_state_dict
-    gc.collect()
+
+def is_valid_state_dict(self, state_dict) -> bool:
+    """
+    This function checks whether a given state_dict is valid for a PyTorch model.
+    The state_dict is valid if:
+        - it is a dictionary and not empty
+        - all keys in the state_dict match the keys in the model's state_dict
+        - all values in the state_dict are float tensors
+        - all elements of the tensors are finite
+        - the shapes of tensors in the state_dict match with corresponding tensors in the model's state_dict
+
+    Parameters:
+        state_dict (dict): The state dictionary to validate. This dict typically contains
+            mappings from layer names to corresponding parameters.
+
+    Returns:
+        bool: True if the state_dict is valid, False otherwise.
+    """
+    # Check if the state_dict is a non-empty dictionary
+    if state_dict is None or not isinstance(state_dict, dict) or len(state_dict.keys()) == 0:
+        bt.logging.warning(f'Invalid state_dict: Is None, empty or not a dict: {state_dict}')
+        return False
+
+    # Iterate over all keys in the state_dict
+    for key in state_dict.keys():
+
+        # If the key is not in the model's state_dict, the input state_dict is not valid
+        if key not in self.model.state_dict().keys():
+            bt.logging.warning(f'Invalid state_dict: Keys do not match the model: {key}')
+            return False
+
+        # If the corresponding value is None, the input state_dict is not valid
+        if state_dict[key] is None:
+            bt.logging.warning(f'Invalid state_dict: Weight is none: {state_dict[key]}')
+            return False
+
+        # If the value is not a float tensor, the input state_dict is not valid
+        if not isinstance(state_dict[key], (torch.FloatTensor, torch.cuda.FloatTensor)):
+            bt.logging.warning(f'Invalid state_dict: Weight is not float tensor: {state_dict[key]}')
+            return False
+
+        # If any elements of the tensor are not finite, the input state_dict is not valid
+        if not torch.all(torch.isfinite(state_dict[key])):
+            bt.logging.warning(f'Invalid state_dict: Weight is not finite: {state_dict[key]}')
+            return False
+
+        # Check if the element is tensorable
+        try:
+            element_as_tensor = torch.tensor(state_dict[key])
+        except:
+            bt.logging.warning(f"Invalid state_dict: Weight was not convertible to a tensor {state_dict[key].shape}")
+            return False
+
+        # If the shape of the tensor does not match the corresponding tensor in the model, 
+        # the input state_dict is not valid
+        if element_as_tensor.shape != torch.tensor(self.model.state_dict()[key]).shape:
+            bt.logging.warning(f"Invalid state_dict: Weight dimensions do not match the model: {state_dict[key].shape}")
+            return False
+
+    # If none of the above conditions are met, the state_dict is valid
+    return True
 
 # Testss
 import pytest

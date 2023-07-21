@@ -40,7 +40,6 @@ def get_grads( self, synapse: GetGrads ) -> GetGrads:
     synapse.grads = self.saved_grads
     return synapse
 
-
 def merge_grads( self ):
 
     online_axons = [self.metagraph.axons[uid] for uid in get_online_uids( self )]
@@ -70,43 +69,59 @@ def _merge_grads( self, axons: typing.List[ bt.axon ]  ):
         grad_dicts = [grad_dicts]
 
     # Filter out invalid grads.
-    valid_grad_dicts = []
-    for grad_dict in grad_dicts:
-        is_valid = True
-
-        if grad_dict is None or not isinstance(grad_dict, dict) or len(grad_dict.keys()) == 0:
-            bt.logging.warning(f'Invalid grad_dict: Is None, empty or not a dict: {state_dict}')
-            is_valid = False; continue
-    
-        for key in grad_dict.keys():
-            if key not in self.model.state_dict().keys():
-                bt.logging.warning(f'Invalid grad_dict: Keys do not match the model: {key}')
-                is_valid = False; break
-
-            elif grad_dict[key] is None:
-                bt.logging.warning(f'Invalid grad_dict: grad is none: {grad_dict[key]}')
-                is_valid = False; break
-
-            elif not isinstance(grad_dict[key], (torch.FloatTensor, torch.cuda.FloatTensor)):
-                bt.logging.warning(f'Invalid grad_dict: grads are not float tensor: {grad_dict[key]}')
-                is_valid = False; break
-
-            elif not torch.all(torch.isfinite(grad_dict[key])):
-                bt.logging.warning(f'Invalid grad_dict: Grads are not finite: {grad_dict[key]}')
-                is_valid = False; break
-
-            elif torch.tensor(grad_dict[key]).shape != torch.tensor(self.model.state_dict()[key]).shape:
-                bt.logging.warning(f"Invalid grad_dict: Weights dimensions do not match the model: {grad_dict[key].shape}")
-                is_valid = False; break
-
-        if is_valid:
-            valid_grad_dicts.append(grad_dict)
-
     # Check that there are valid gradient dicts to average.
-    if len(valid_grad_dicts) == 0:
-        raise Exception('There are no valid gradient dicts.')
-    self.wandb.log( {'valid_grad_dicts': len(valid_grad_dicts)} )
+    valid_grad_dicts = [ grad_dict for grad_dict in grad_dicts if is_valid_grad_dict( self, grad_dict ) ]
+    if len(valid_grad_dicts) == 0: raise Exception('There are no valid gradient dicts.')
+    self.wandb.log( {'n_valid_grad_dicts': len(valid_grad_dicts)} )
 
+    # Average the grad dict.
+    avg_valid_grads_dict = average_grad_dicts( self, valid_grad_dicts )
+
+    # Apply the averaged gradients to the model's parameters
+    apply_averaged_gradients( self, avg_valid_grads_dict)
+
+    # Log the successful reduction of gradients
+    bt.logging.success(f'Successfully reduced {len(grad_dicts)} grads.')
+    self.wandb.log({'successfully_average_gradients': 1.0})
+
+    # Sanity check delete memory
+    del grad_dicts
+    del valid_grad_dicts
+    del avg_valid_grads_dict
+    gc.collect()
+
+def apply_averaged_gradients(self, avg_valid_grads_dict: typing.Dict[str, torch.Tensor] ):
+    """
+    This function applies the averaged gradients from the input gradient dictionary to 
+    the parameters of the model.
+
+    Parameters:
+        avg_valid_grads_dict (dict): A gradient dictionary with averaged gradients. This dictionary
+            typically contains mappings from parameter names to corresponding gradients.
+    """
+    # Apply the averaged gradients to the model's parameters
+    for name, param in self.model.named_parameters():
+        # Only apply the gradients if the parameter exists in the averaged gradients dictionary
+        if name in avg_valid_grads_dict:
+            # If the parameter already has a gradient, add the averaged gradient to it
+            # Otherwise, assign the averaged gradient as the parameter's gradient
+            if param.grad is not None:
+                param.grad += avg_valid_grads_dict[name]
+            else:
+                param.grad = avg_valid_grads_dict[name].clone()
+
+def average_grad_dicts(self, valid_grad_dicts: typing.List[typing.Dict[str, torch.Tensor]]) -> typing.Dict[str, torch.Tensor]:
+    """
+    This function averages the gradients from a list of valid gradient dictionaries and 
+    returns a new gradient dictionary with the averaged gradients.
+
+    Parameters:
+        valid_grad_dicts (list): A list of valid gradient dictionaries. Each gradient dictionary
+            typically contains mappings from layer names to corresponding gradients.
+
+    Returns:
+        dict: A gradient dictionary with averaged gradients.
+    """
     # Build average
     avg_valid_grads_dict = {}
 
@@ -136,26 +151,69 @@ def _merge_grads( self, axons: typing.List[ bt.axon ]  ):
         del all_grads
         del grad_sum
 
-    # Apply the averaged gradients to the model's parameters
-    for name, param in self.model.named_parameters():
-        # Only apply the gradients if the parameter exists in the averaged gradients dictionary
-        if name in avg_valid_grads_dict:
-            # If the parameter already has a gradient, add the averaged gradient to it
-            # Otherwise, assign the averaged gradient as the parameter's gradient
-            if param.grad is not None:
-                param.grad += avg_valid_grads_dict[name]
-            else:
-                param.grad = avg_valid_grads_dict[name].clone()
+    return avg_valid_grads_dict
 
-    # Log the successful reduction of gradients
-    bt.logging.success(f'Successfully reduced {len(grad_dicts)} grads.')
-    self.wandb.log({'successfully_average_gradients': 1.0})
 
-    # Sanity check delete memory
-    del grad_dicts
-    del valid_grad_dicts
-    del avg_valid_grads_dict
-    gc.collect()
+def is_valid_grad_dict(self, grad_dict) -> bool:
+    """
+    This function checks whether a given grad_dict is valid for a PyTorch model.
+    The grad_dict is valid if:
+        - it is a dictionary and not empty
+        - all keys in the grad_dict match the keys in the model's state_dict
+        - all values in the grad_dict are float tensors
+        - all elements of the tensors are finite
+        - the shapes of tensors in the grad_dict match with corresponding tensors in the model's state_dict
+
+    Parameters:
+        grad_dict (dict): The gradient dictionary to validate. This dict typically contains
+            mappings from layer names to corresponding gradients.
+
+    Returns:
+        bool: True if the grad_dict is valid, False otherwise.
+    """
+    # Check if the grad_dict is a non-empty dictionary
+    if grad_dict is None or not isinstance(grad_dict, dict) or len(grad_dict.keys()) == 0:
+        bt.logging.warning(f'Invalid grad_dict: Is None, empty or not a dict: {grad_dict}')
+        return False
+
+    # Iterate over all keys in the grad_dict
+    for key in grad_dict.keys():
+
+        # If the key is not in the model's state_dict, the input grad_dict is not valid
+        if key not in self.model.state_dict().keys():
+            bt.logging.warning(f'Invalid grad_dict: Grad dict keys do not match the model: {key}')
+            return False
+
+        # If the corresponding value is None, the input grad_dict is not valid
+        if grad_dict[key] is None:
+            bt.logging.warning(f'Invalid grad_dict: Grad is none: {grad_dict[key]}')
+            return False
+
+        # If the value is not a float tensor, the input grad_dict is not valid
+        if not isinstance(grad_dict[key], (torch.FloatTensor, torch.cuda.FloatTensor)):
+            bt.logging.warning(f'Invalid grad_dict: Grad is not float tensor: {grad_dict[key]}')
+            return False
+
+        # If any elements of the tensor are not finite, the input grad_dict is not valid
+        if not torch.all(torch.isfinite(grad_dict[key])):
+            bt.logging.warning(f'Invalid grad_dict: Grad is not finite: {grad_dict[key]}')
+            return False
+
+        # Check if the element is tensorable
+        try:
+            element_as_tensor = torch.tensor(grad_dict[key])
+        except:
+            bt.logging.warning(f"Invalid grad_dict: Grad was not convertible to a tensor {grad_dict[key].shape}")
+            return False
+
+        # If the shape of the tensor does not match the corresponding tensor in the model,
+        # the input grad_dict is not valid
+        if element_as_tensor.shape != torch.tensor(self.model.state_dict()[key]).shape:
+            bt.logging.warning(f"Invalid grad_dict: Grad dimensions do not match the model: {grad_dict[key].shape}")
+            return False
+
+    # If none of the above conditions are met, the grad_dict is valid
+    return True
 
 
 # Tests
