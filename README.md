@@ -15,7 +15,7 @@ wandb login
 # Run
 To run a miner or multiple:
 ```bash
-python miner.py --wallet.hotkey miner1 --axon.port 8091
+python pretrain/neuron.py --wallet.hotkey miner1 --axon.port 8091
 ...
-python miner.py --wallet.hotkey miner1 --axon.port 8092
+python pretrain/neuron.py --wallet.hotkey miner1 --axon.port 8092
 ```
