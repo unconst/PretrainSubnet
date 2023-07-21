@@ -2,7 +2,8 @@ import gc
 import torch
 import typing
 import bittensor as bt
-from .misc import get_online_uids
+
+from pretrain.misc import get_online_uids
 
 # Protocol Definition to get Gradients
 class GetGrads( bt.Synapse ):
@@ -71,33 +72,38 @@ def _merge_grads( self, axons: typing.List[ bt.axon ]  ):
     # Filter out invalid grads.
     valid_grad_dicts = []
     for grad_dict in grad_dicts:
-        # TODO: Add error handling for when the grad_dict is None, not a dictionary, 
-        # the keys don't match the model's keys, or the weights dimensions don't match.
-        if grad_dict is None or not isinstance(grad_dict, dict):
-            bt.logging.warning('Invalid grad_dict: Not a dictionary or None.')
-            continue
+        is_valid = True
 
-        if set(grad_dict.keys()) != set(self.model.state_dict().keys()):
-            bt.logging.warning('Invalid grad_dict: Keys do not match the model.')
-            continue
+        if grad_dict is None or not isinstance(grad_dict, dict) or len(grad_dict.keys()) == 0:
+            is_valid = False; continue
+    
+        for key in grad_dict.keys():
+            if key not in self.model.state_dict().keys():
+                bt.logging.warning('Invalid grad_dict: Keys do not match the model.')
+                is_valid = False; break
 
-        if not all( grad_dict[key] != None for key in grad_dict.keys()):
-            bt.logging.warning('Invalid grad_dict: grad is none')
-            continue
+            elif grad_dict[key] is None:
+                bt.logging.trace(grad_dict)
+                bt.logging.warning(f'Invalid grad_dict: grad is none: {grad_dict[key]}')
+                is_valid = False; break
 
-        if not all( isinstance(grad_dict[key], (torch.FloatTensor, torch.cuda.FloatTensor)) for key in grad_dict.keys() ):
-            bt.logging.warning('Invalid grad_dict: grads are not float tensor.')
-            continue
+            elif not isinstance(grad_dict[key], (torch.FloatTensor, torch.cuda.FloatTensor)):
+                bt.logging.trace(grad_dict)
+                bt.logging.warning(f'Invalid grad_dict: grads are not float tensor: {grad_dict[key]}')
+                is_valid = False; break
 
-        if not all( torch.all( torch.isfinite(grad_dict[key]) ) for key in grad_dict.keys()):
-            bt.logging.warning('Invalid grad_dict: Grads are not finite.')
-            continue
+            elif not torch.all(torch.isfinite(grad_dict[key])):
+                bt.logging.trace(grad_dict)
+                bt.logging.warning(f'Invalid grad_dict: Grads are not finite: {grad_dict[key]}')
+                is_valid = False; break
 
-        if not all(torch.tensor(grad_dict[key]).shape == torch.tensor(self.model.state_dict()[key]).shape for key in grad_dict.keys()):
-            bt.logging.warning('Invalid grad_dict: Weights dimensions do not match the model.')
-            continue
+            elif torch.tensor(grad_dict[key]).shape != torch.tensor(self.model.state_dict()[key]).shape:
+                bt.logging.trace(grad_dict)
+                bt.logging.warning(f"Invalid grad_dict: Weights dimensions do not match the model: {grad_dict[key].shape}")
+                is_valid = False; break
 
-        valid_grad_dicts.append(grad_dict)
+        if is_valid:
+            valid_grad_dicts.append(grad_dict)
 
     # Check that there are valid gradient dicts to average.
     if len(valid_grad_dicts) == 0:

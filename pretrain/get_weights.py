@@ -4,6 +4,8 @@ import torch
 import typing
 import bittensor as bt
 
+from pretrain.misc import get_online_uids
+
 # Protocol Definition to get Weights
 class GetWeights( bt.Synapse ):
     """
@@ -44,8 +46,8 @@ def merge_weights( self ):
 
     online_axons = [self.metagraph.axons[uid] for uid in get_online_uids( self )]
     if len(online_axons) == 0:
-        raise Exception('There are no online uids to average gradients with.')
-    bt.logging.debug(f'Reducing grads with axons:\n {online_axons}')
+        raise Exception('There are no online uids to average weights with.')
+    bt.logging.debug(f'Reducing weights with axons:\n {online_axons}')
 
     try:
         _merge_weights( self, online_axons)
@@ -69,35 +71,38 @@ def _merge_weights(self, axons: typing.List[ bt.axon ] ):
     if not isinstance(state_dicts, list): 
         state_dicts = [state_dicts]
 
-    # Filter out invalid state_dicts.
+    # Filter out invalid grads.
     valid_state_dicts = []
     for state_dict in state_dicts:
-        # TODO: Add error handling for when the state_dict is None, not a dictionary, 
-        # the keys don't match the model's keys, or the weights dimensions don't match.
-        if state_dict is None or not isinstance(state_dict, dict):
-            bt.logging.warning('Invalid state_dict: Not a dictionary or None.')
-            continue
+        is_valid = True
 
-        if set(state_dict.keys()) != set(self.model.state_dict().keys()):
-            bt.logging.warning('Invalid state_dict: Keys do not match the model.')
-            continue
+        if state_dict is None or not isinstance(state_dict, dict) or len(state_dict.keys()) == 0:
+            is_valid = False; continue
+    
+        for key in state_dict.keys():
+            if key not in self.model.state_dict().keys():
+                bt.logging.warning('Invalid state_dict: Keys do not match the model.')
+                is_valid = False; break
 
-        if not all( state_dict[key] != None for key in state_dict.keys()):
-            bt.logging.warning('Invalid state_dict: grad is none')
-            continue
+            elif state_dict[key] is None:
+                bt.logging.warning(f'Invalid state_dict: Weight is none: {state_dict[key]}')
+                is_valid = False; break
 
-        if not all( isinstance(state_dict[key], (torch.FloatTensor, torch.cuda.FloatTensor)) for key in state_dict.keys() ):
-            bt.logging.warning('Invalid state_dict: grads are not float tensor.')
-            continue
+            elif not isinstance(state_dict[key], (torch.FloatTensor, torch.cuda.FloatTensor)):
+                bt.logging.warning(f'Invalid state_dict: Weights are not float tensor: {state_dict[key]}')
+                is_valid = False; break
 
-        if not all( torch.all( torch.isfinite(state_dict[key]) ) for key in state_dict.keys()):
-            bt.logging.warning('Invalid state_dict: Grads are not finite')
+            elif not torch.all(torch.isfinite(state_dict[key])):
+                bt.logging.warning(f'Invalid state_dict: Weights are not finite: {state_dict[key]}')
+                is_valid = False; break
 
-        if not all(torch.tensor(state_dict[key]).shape == torch.tensor(self.model.state_dict()[key]).shape for key in state_dict.keys()):
-            bt.logging.warning('Invalid state_dict: Weights dimensions do not match the model.')
-            continue
+            elif torch.tensor(state_dict[key]).shape != torch.tensor(self.model.state_dict()[key]).shape:
+                bt.logging.warning(f"Invalid state_dict: Weights dimensions do not match the model: {state_dict[key].shape}")
+                is_valid = False; break
 
-        valid_state_dicts.append(state_dict)
+        if is_valid:
+            valid_state_dicts.append(state_dict)
+
     if len(valid_state_dicts) == 0:
         raise Exception('There are no valid weights dicts.')
     self.wandb.log( {'valid_weight_dicts': len(valid_state_dicts)} )

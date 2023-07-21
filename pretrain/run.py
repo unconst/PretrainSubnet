@@ -109,7 +109,7 @@ def run( self ):
             # Update the weights
             self.optimizer.step()
 
-                # Log the loss value for this batch.
+            # Log the loss value for this batch.
             training_step += 1
             self.wandb.log({ 'block': self.subtensor.block })
             self.wandb.log({ 'training_step': training_step })
