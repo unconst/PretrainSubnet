@@ -79,7 +79,8 @@ def run( self ):
     total_epoch_steps = 0
     total_training_steps = 0
     total_accumulation_steps = 0
-
+    total_accumulated_samples = 0
+    
     # Training loop
     while True:
         bt.logging.info(f'Starting new epoch: {total_epoch_steps}')
