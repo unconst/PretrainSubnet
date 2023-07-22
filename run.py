@@ -17,13 +17,13 @@ def git_pull():
 
 def main():
     try:
-        print('Starting.')
-        os.execv(sys.executable, ['python'] + sys.argv)
+        print(f'Starting: python + { sys.argv }')
+        os.execv(sys.executable, ['python'] + ['pretrain/neuron.py'] + sys.argv[1:])
         while True:
             if git_has_changes():
                 print('Changes detected. Pulling updates and restarting...')
                 git_pull()
-                os.execv(sys.executable, ['python'] + sys.argv)
+                os.execv(sys.executable, ['python'] + ['pretrain/neuron.py'] + sys.argv[1:])
             time.sleep(10)
     except KeyboardInterrupt:
         print('Interrupted by user. Exiting.')
