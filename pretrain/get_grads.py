@@ -42,31 +42,32 @@ def get_grads( self, synapse: GetGrads ) -> GetGrads:
 
 def merge_grads( self ):
 
-    online_axons = [self.metagraph.axons[uid] for uid in get_online_uids( self )]
-    if len(online_axons) == 0:
-        raise Exception('There are no online uids to average gradients with.')
-    bt.logging.debug(f'Reducing grads with axons:\n {online_axons}')
 
     try:
+        # Get axons to merge with.
+        online_axons = [self.metagraph.axons[uid] for uid in get_online_uids( self )]
+        if len(online_axons) == 0: raise Exception('There are no online uids to average gradients with.')
+
+        # Merge gradients.
         _merge_grads( self, online_axons )
+
+    # On error log invalid step.
     except Exception as e:
         bt.logging.error( f'Failed to merge grads with error {e}')
+        self.wandb.log({'successfully_average_gradients': 0.0})
 
 def _merge_grads( self, axons: typing.List[ bt.axon ]  ):
     """
     Function to average the gradients of a model across several online axons.
     """
-
     # Log that the gradient reduction process is starting
     bt.logging.info('Reducing gradients.')
     self.wandb.log({'reduce_gradients_event': 1.0})
 
     # Use the dendrite's query function to retrieve the gradients for the online axons
-    grad_dicts = self.dendrite.query( axons, GetGrads())
-
     # If the query function only returns one dictionary, wrap it in a list for the later iteration
-    if not isinstance(grad_dicts, list):
-        grad_dicts = [grad_dicts]
+    grad_dicts = self.dendrite.query( axons, GetGrads())
+    if not isinstance(grad_dicts, list): grad_dicts = [grad_dicts]
 
     # Filter out invalid grads.
     # Check that there are valid gradient dicts to average.
@@ -74,11 +75,11 @@ def _merge_grads( self, axons: typing.List[ bt.axon ]  ):
     if len(valid_grad_dicts) == 0: raise Exception('There are no valid gradient dicts.')
     self.wandb.log( {'n_valid_grad_dicts': len(valid_grad_dicts)} )
 
-    # Average the grad dict.
+    # Average the grad dicts.
     avg_valid_grads_dict = average_grad_dicts( self, valid_grad_dicts )
 
     # Apply the averaged gradients to the model's parameters
-    apply_averaged_gradients( self, avg_valid_grads_dict)
+    apply_averaged_gradients( self, avg_valid_grads_dict )
 
     # Log the successful reduction of gradients
     bt.logging.success(f'Successfully reduced {len(grad_dicts)} grads.')
@@ -106,9 +107,9 @@ def apply_averaged_gradients(self, avg_valid_grads_dict: typing.Dict[str, torch.
             # If the parameter already has a gradient, add the averaged gradient to it
             # Otherwise, assign the averaged gradient as the parameter's gradient
             if param.grad is not None:
-                param.grad += avg_valid_grads_dict[name]
+                param.grad += avg_valid_grads_dict[name].to( self.device )
             else:
-                param.grad = avg_valid_grads_dict[name].clone()
+                param.grad = avg_valid_grads_dict[name].clone().to( self.device )
 
 def average_grad_dicts(self, valid_grad_dicts: typing.List[typing.Dict[str, torch.Tensor]]) -> typing.Dict[str, torch.Tensor]:
     """

@@ -42,16 +42,18 @@ def get_weights( self, synapse: GetWeights ) -> GetWeights:
     return synapse
 
 def merge_weights( self ):
-
-    online_axons = [self.metagraph.axons[uid] for uid in get_online_uids( self )]
-    if len(online_axons) == 0:
-        raise Exception('There are no online uids to average weights with.')
-    bt.logging.debug(f'Reducing weights with axons:\n {online_axons}')
-
     try:
+
+        # Get axons to merge weights with.
+        online_axons = [self.metagraph.axons[uid] for uid in get_online_uids( self )]
+        if len(online_axons) == 0: raise Exception('There are no online uids to average weights with.')
+
+        # Merge weights.
         _merge_weights( self, online_axons)
+
     except Exception as e:
         bt.logging.error( f'Failed to merge weights with error {e}')
+        self.wandb.log({ 'average_weights_event': 0.0 })
 
 def _merge_weights(self, axons: typing.List[ bt.axon ] ):
     """
@@ -64,21 +66,20 @@ def _merge_weights(self, axons: typing.List[ bt.axon ] ):
     self.wandb.log({ 'average_weights_event': 1.0 })
 
     # Query all miners for their model weights.
-    state_dicts = self.dendrite.query( axons, GetWeights())
-    
     # If only one model's weights were returned, make sure it's in a list.
-    if not isinstance(state_dicts, list): 
-        state_dicts = [state_dicts]
+    state_dicts = self.dendrite.query( axons, GetWeights() )    
+    if not isinstance(state_dicts, list): state_dicts = [state_dicts]
 
-    # Filter out invalid grads.
+    # Filter out invalid weights.
     valid_state_dicts = [state_dict for state_dict in state_dicts if is_valid_state_dict( self, state_dict )] 
     if len(valid_state_dicts) == 0: raise Exception('There are no valid weights dicts.')
     self.wandb.log( {'n_valid_weight_dicts': len(valid_state_dicts)} )
 
-    # Average the valid state dicts.
+    # Average and apply the valid state dicts to the model.
     avg_state_dict = average_state_dicts( self, valid_state_dicts )
     self.model.load_state_dict( avg_state_dict )
     
+    # Log the weights average success.
     bt.logging.success(f'Successfully averaged {len(state_dicts)} weights.') 
     self.wandb.log({ 'successfully_average_weights': 1.0 })
 
@@ -122,7 +123,7 @@ def average_state_dicts( self, valid_state_dicts: typing.List[typing.Dict[str, t
         avg_weight = total_weights / num_weights
 
         # Assign the average weight to the new state dictionary.
-        avg_state_dict[key] = avg_weight
+        avg_state_dict[key] = avg_weight.to(self.device)
 
         del total_weights
         del num_weights
