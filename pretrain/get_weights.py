@@ -175,16 +175,9 @@ def is_valid_state_dict(self, state_dict) -> bool:
             bt.logging.warning(f'Invalid state_dict: Weight is not finite: {state_dict[key]}')
             return False
 
-        # Check if the element is tensorable
-        try:
-            element_as_tensor = torch.tensor(state_dict[key])
-        except:
-            bt.logging.warning(f"Invalid state_dict: Weight was not convertible to a tensor {state_dict[key].shape}")
-            return False
-
         # If the shape of the tensor does not match the corresponding tensor in the model, 
         # the input state_dict is not valid
-        if element_as_tensor.shape != torch.tensor(self.model.state_dict()[key]).shape:
+        if state_dict[key].shape != torch.tensor(self.model.state_dict()[key]).shape:
             bt.logging.warning(f"Invalid state_dict: Weight dimensions do not match the model: {state_dict[key].shape}")
             return False
 

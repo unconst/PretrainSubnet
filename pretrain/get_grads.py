@@ -199,16 +199,9 @@ def is_valid_grad_dict(self, grad_dict) -> bool:
             bt.logging.warning(f'Invalid grad_dict: Grad is not finite: {grad_dict[key]}')
             return False
 
-        # Check if the element is tensorable
-        try:
-            element_as_tensor = torch.tensor(grad_dict[key])
-        except:
-            bt.logging.warning(f"Invalid grad_dict: Grad was not convertible to a tensor {grad_dict[key].shape}")
-            return False
-
         # If the shape of the tensor does not match the corresponding tensor in the model,
         # the input grad_dict is not valid
-        if element_as_tensor.shape != torch.tensor(self.model.state_dict()[key]).shape:
+        if grad_dict[key].shape != torch.tensor(self.model.state_dict()[key]).shape:
             bt.logging.warning(f"Invalid grad_dict: Grad dimensions do not match the model: {grad_dict[key].shape}")
             return False
 
