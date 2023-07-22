@@ -103,6 +103,7 @@ def _merge_weights(self, axons: typing.List[ bt.axon ] ):
     del state_dicts
     del valid_state_dicts
     del avg_state_dict
+    torch.cuda.empty_cache() # Clear cache if existent.
     gc.collect()
 
 def average_state_dicts( self, valid_state_dicts: typing.List[typing.Dict[str, torch.Tensor]]) -> typing.Dict[str, torch.Tensor]:

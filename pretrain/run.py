@@ -135,6 +135,7 @@ def run( self ):
                 total_training_steps += 1
             
             # Log all params. 
+            torch.cuda.empty_cache() # Clear cache if existent.
             self.wandb.log({ 'block': self.subtensor.block })
             self.wandb.log({ 'total_training_steps': total_training_steps })
             self.wandb.log({ 'total_accumulation_steps': total_accumulation_steps })

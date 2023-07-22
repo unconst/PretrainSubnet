@@ -105,6 +105,7 @@ def _merge_grads( self, axons: typing.List[ bt.axon ]  ):
     del grad_dicts
     del valid_grad_dicts
     del avg_valid_grads_dict
+    torch.cuda.empty_cache() # Clear cache if existent.
     gc.collect()
 
 def apply_averaged_gradients(self, avg_valid_grads_dict: typing.Dict[str, torch.Tensor] ):
