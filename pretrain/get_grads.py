@@ -156,13 +156,13 @@ def average_grad_dicts(self, valid_grad_dicts: typing.List[typing.Dict[str, torc
 
         # Add each grad tensor to the sum (this replaces stacking and taking the mean)
         for grad in all_grads:
-            grad_sum += grad
+            grad_sum += grad.to(self.device)
 
         # Divide the sum by the number of gradients to get the average (note: this is an in-place operation)
         grad_sum.div_(len(all_grads))
 
         # Assign the averaged gradient to the averaged gradients dictionary
-        avg_valid_grads_dict[key] = grad_sum
+        avg_valid_grads_dict[key] = grad_sum.to(self.device)
 
         # Delete all_grads and grad_sum to free up memory
         del all_grads
@@ -215,6 +215,9 @@ def is_valid_grad_dict(self, grad_dict) -> bool:
         if not torch.all(torch.isfinite(grad_dict[key])):
             bt.logging.warning(f'Invalid grad_dict: Grad is not finite: {grad_dict[key]}')
             return False
+
+        # Ensure device is correct.
+        grad_dict[key].to(self.device)
 
         # If the shape of the tensor does not match the corresponding tensor in the model,
         # the input grad_dict is not valid

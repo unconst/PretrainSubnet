@@ -128,7 +128,7 @@ def average_state_dicts( self, valid_state_dicts: typing.List[typing.Dict[str, t
         # Accumulate weights and their count.
         for state_dict in valid_state_dicts:
             if key in state_dict:
-                total_weights += state_dict[key]
+                total_weights += state_dict[key].to(self.device)
                 num_weights += 1
 
         # Skip this key if there are no weights available.
@@ -191,6 +191,9 @@ def is_valid_state_dict(self, state_dict) -> bool:
         if not torch.all(torch.isfinite(state_dict[key])):
             bt.logging.warning(f'Invalid state_dict: Weight is not finite: {state_dict[key]}')
             return False
+
+        # Ensure device is correct.
+        state_dict[key].to(self.device)
 
         # If the shape of the tensor does not match the corresponding tensor in the model, 
         # the input state_dict is not valid

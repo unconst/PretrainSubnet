@@ -76,8 +76,9 @@ def run( self ):
     init_run_state( self )
 
     # Initialize step counter
-    global_step = 0
-    training_step = 0
+    total_epoch_steps = 0
+    total_training_steps = 0
+    total_accumulation_steps = 0
 
     # Training loop
     while True:
@@ -101,8 +102,8 @@ def run( self ):
         merge_weights( self )
 
         # Train on epoch.
-        for batch in self.dataloader:
-            bt.logging.debug(f'Starting new training step: {training_step}')
+        for acc_step, batch in enumerate( self.dataloader ):
+            bt.logging.success(f'Step: {acc_step}/{self.config.n_accumulation_steps}, Accumulations: {total_accumulation_steps}, Training: {total_training_steps}, Epoch: {total_epoch_steps}')
 
             # Zero out gradients calculated in the previous iteration.
             # and save them for others to query.
@@ -119,19 +120,31 @@ def run( self ):
             # Backward pass
             loss.backward()
 
-            # Retrieve and apply gradients from other miners.
-            merge_grads( self )
+            # Inc total_accumulation steps.
+            total_accumulation_steps += 1
+            if ( acc_step + 1 ) % self.config.n_accumulation_steps == 0:
+                bt.logging.success(f'Finished accumulating: Running training step.')
 
-            # Update the weights
-            self.optimizer.step()
+                # Average local gradients with remote.
+                merge_grads( self )
 
-            # Log the loss value for this batch.
-            training_step += 1
+                # Update the weights
+                self.optimizer.step()
+
+                # Log the loss value for this batch.
+                total_training_steps += 1
+            
+            # Log all params. 
             self.wandb.log({ 'block': self.subtensor.block })
-            self.wandb.log({ 'training_step': training_step })
+            self.wandb.log({ 'total_training_steps': total_training_steps })
+            self.wandb.log({ 'total_accumulation_steps': total_accumulation_steps })
             self.wandb.log({ 'train_loss': loss })
             bt.logging.info(f"Loss: {loss.item()}") 
 
+        # Log finished epoch
+        total_epoch_steps += 1
+        self.wandb.log({ 'total_epoch_steps': total_epoch_steps })
+        bt.logging.success(f'Finished epoch: { total_epoch_steps }')
 
         # Set ping weights.
         if self.subtensor.block - self.metagraph.last_update[ self.my_uid ] > 50:
@@ -146,6 +159,3 @@ def run( self ):
             bt.logging.info( 'Set weights ')
             self.wandb.log({ 'set_weights': 1.0 })
 
-        # Increment step counter.
-        global_step += 1
-        self.wandb.log({ 'global_step': global_step })
