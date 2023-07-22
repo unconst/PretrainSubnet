@@ -48,18 +48,22 @@ class Process:
 def git_has_changes():
     """
     Function to check if there are any changes on the current git branch.
+    If changes are detected, it also re-installs the package.
     """
-    # Get the current branch name
     current_branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).strip().decode('utf-8')
     bt.logging.success(f'Checking git changes on {current_branch}' )
 
-    # Fetch latest changes
     result = subprocess.run(['git', 'fetch'], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
     if result.returncode != 0:
         raise RuntimeError('Error fetching git updates')
-    
-    # Check if there are any differences between the local and remote versions of the current branch
+
     result = subprocess.run(['git', 'diff', current_branch, 'origin/'+current_branch], stdout=subprocess.PIPE)
+
+    # If changes detected, re-install the package
+    if result.stdout != b'':
+        bt.logging.success(f'Reinstalling pretrain package with updates' )
+        subprocess.run(['pip', 'install', '.'], check=True)
+
     return result.stdout != b''
 
 def git_pull():
