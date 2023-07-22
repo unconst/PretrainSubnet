@@ -103,7 +103,6 @@ def run( self ):
 
         # Train on epoch.
         for acc_step, batch in enumerate( self.dataloader ):
-            total_accumulated_examples = total_accumulation_steps * self.config.bs
             num_accumulated = (acc_step +1) % self.config.n_acc * self.config.bs
             total_to_accumulate = self.config.n_acc * self.config.bs
             bt.logging.success(f'Step: { num_accumulated }/{ total_to_accumulate }, Accumulations: {total_accumulation_steps}, Training: {total_training_steps}, Epoch: {total_epoch_steps}')
@@ -155,7 +154,7 @@ def run( self ):
             
             # Log all params. 
             total_accumulation_steps += 1
-            total_accumulated_samples += total_accumulation_steps * self.config.bs
+            total_accumulated_samples += self.config.bs
             torch.cuda.empty_cache() # Clear cache if existent.
             self.wandb.log({ 'block': self.subtensor.block })
             self.wandb.log({ 'total_accumulated_samples': total_accumulated_samples })
