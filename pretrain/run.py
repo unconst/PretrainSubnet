@@ -133,6 +133,19 @@ def run( self ):
 
                 # Log the loss value for this batch.
                 total_training_steps += 1
+
+            # Set weights if required.
+            if self.subtensor.block - self.metagraph.last_update[ self.my_uid ] > 75:
+                self.subtensor.set_weights( 
+                    netuid = self.config.netuid, 
+                    wallet = self.wallet, 
+                    uids = [self.my_uid], 
+                    weights = [1.0],
+                    wait_for_inclusion = False,
+                    wait_for_finalization = False,
+                )
+                bt.logging.info( 'Set weights ')
+                self.wandb.log({ 'set_weights': 1.0 })
             
             # Log all params. 
             torch.cuda.empty_cache() # Clear cache if existent.
@@ -147,16 +160,4 @@ def run( self ):
         self.wandb.log({ 'total_epoch_steps': total_epoch_steps })
         bt.logging.success(f'Finished epoch: { total_epoch_steps }')
 
-        # Set ping weights.
-        if self.subtensor.block - self.metagraph.last_update[ self.my_uid ] > 50:
-            self.subtensor.set_weights( 
-                netuid = self.config.netuid, 
-                wallet = self.wallet, 
-                uids = [self.my_uid], 
-                weights = [1.0],
-                wait_for_inclusion = False,
-                wait_for_finalization = False,
-            )
-            bt.logging.info( 'Set weights ')
-            self.wandb.log({ 'set_weights': 1.0 })
 
