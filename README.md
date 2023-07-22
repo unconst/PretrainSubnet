@@ -19,7 +19,9 @@ wandb login
 # Run
 To run a miner or multiple:
 ```bash
-python3.11 pretrain/neuron.py --wallet.hotkey miner1 --axon.port 8091
+# To run from the auto update script.
+python3.11 run.py --wallet.hotkey miner1 --axon.port 8091
 ...
+# To run the main script directly.
 python3.11 pretrain/neuron.py --wallet.hotkey miner1 --axon.port 8092
 ```
