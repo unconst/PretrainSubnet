@@ -78,9 +78,14 @@ class DMiner:
         # Init wandb.
         init_wandb( self )    
 
-    def get_grads( self, synapse: GetGrads ) -> GetGrads: get_grads( self, synapse )
-    def get_weights( self, synapse: GetWeights ) -> GetWeights: get_weights( self, synapse )
-    def run( self ): run( self )
+    def get_grads( self, synapse: GetGrads ) -> GetGrads: 
+        return get_grads( self, synapse )
+
+    def get_weights( self, synapse: GetWeights ) -> GetWeights: 
+        return get_weights( self, synapse )
+
+    def run( self ): 
+        run( self )
 
 if __name__ == "__main__":
     miner = DMiner()
