@@ -2,13 +2,13 @@
 
 # Install
 
-1. You require python3.11 to run:
+1. You require python3.11 to run/install this package.
 [Linux Install](https://iohk.zendesk.com/hc/en-us/articles/16724475448473-Install-Python-3-11-on-ubuntu)
 [Mac Install](https://pythontest.com/python/installing-python-3-11/)
 
-2. Install requirements.
+2. Install package.
 ```bash
-python3.11 -m pip install -r requirements.txt
+python3.11 -m pip install -e .
 ```
 
 3. Install [Weights and Biases](https://docs.wandb.ai/quickstart) and login via:
