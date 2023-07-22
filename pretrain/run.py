@@ -103,7 +103,9 @@ def run( self ):
 
         # Train on epoch.
         for acc_step, batch in enumerate( self.dataloader ):
-            bt.logging.success(f'Step: { (acc_step +1) % self.config.n_acc}/{self.config.n_acc}, Accumulations: {total_accumulation_steps}, Training: {total_training_steps}, Epoch: {total_epoch_steps}')
+            num_accumulated = (acc_step +1) % self.config.n_acc * self.config.bs
+            total_to_accumulate = self.config.n_acc * self.config.bs
+            bt.logging.success(f'Step: { num_accumulated }/{ total_to_accumulate }, Accumulations: {total_accumulation_steps}, Training: {total_training_steps}, Epoch: {total_epoch_steps}')
 
             # Zero out gradients calculated in the previous iteration.
             # and save them for others to query.
