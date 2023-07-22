@@ -103,7 +103,7 @@ def run( self ):
 
         # Train on epoch.
         for acc_step, batch in enumerate( self.dataloader ):
-            bt.logging.success(f'Step: {acc_step}/{self.config.n_accumulation_steps}, Accumulations: {total_accumulation_steps}, Training: {total_training_steps}, Epoch: {total_epoch_steps}')
+            bt.logging.success(f'Step: {acc_step}/{self.config.n_acc}, Accumulations: {total_accumulation_steps}, Training: {total_training_steps}, Epoch: {total_epoch_steps}')
 
             # Zero out gradients calculated in the previous iteration.
             # and save them for others to query.
@@ -122,8 +122,12 @@ def run( self ):
 
             # Inc total_accumulation steps.
             total_accumulation_steps += 1
-            if ( acc_step + 1 ) % self.config.n_accumulation_steps == 0:
+            if ( acc_step + 1 ) % self.config.n_acc == 0:
                 bt.logging.success(f'Finished accumulating: Running training step.')
+
+                # Average across accumulations.
+                for param in self.model.parameters():
+                    param.grad /= self.config.n_acc 
 
                 # Average local gradients with remote.
                 merge_grads( self )
