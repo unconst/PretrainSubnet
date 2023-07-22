@@ -56,8 +56,8 @@ def init_config( cls ) -> bt.config:
         default = 16,
         help = "Training batch size.",
     )
-     parser.add_argument(
-        "--n_accumulation_steps",
+    parser.add_argument(
+        "--n_acc",
         type = int,
         default = 1,
         help = "Number of steps before we apply an accumulation step.",
