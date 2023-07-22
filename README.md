@@ -8,7 +8,7 @@
 
 2. Install requirements.
 ```bash
-python -m pip install -r requirements.txt
+python3.11 -m pip install -r requirements.txt
 ```
 
 3. Install [Weights and Biases](https://docs.wandb.ai/quickstart) and login via:
@@ -19,7 +19,7 @@ wandb login
 # Run
 To run a miner or multiple:
 ```bash
-python pretrain/neuron.py --wallet.hotkey miner1 --axon.port 8091
+python3.11 pretrain/neuron.py --wallet.hotkey miner1 --axon.port 8091
 ...
-python pretrain/neuron.py --wallet.hotkey miner1 --axon.port 8092
+python3.11 pretrain/neuron.py --wallet.hotkey miner1 --axon.port 8092
 ```
