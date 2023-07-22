@@ -45,6 +45,10 @@ class Process:
         self.stop()
         self.start()
 
+    def is_alive(self):
+        """Check if the process is still running"""
+        return self.process is not None and self.process.poll() is None
+
 def git_has_changes():
     """
     Function to check if there are any changes on the current git branch.
@@ -86,16 +90,24 @@ def main():
     
     try:
         while True:
+
+            # Check if the process is still running
+            if not p.is_alive():
+                bt.logging.success('Process terminated. Restarting...')
+                p.restart()
+
             # Check if there are git changes on this local branch.
             if git_has_changes():
                 bt.logging.success('Changes detected. Pulling updates and restarting...')
                 git_pull()
                 p.restart()
+            
+            # All good, continue.
             else:
                 bt.logging.success('No changes detected. Continuing.')
 
-            # Wait 30 seconds.
-            time.sleep(30)
+            # Wait 2 minutes.
+            time.sleep(10)
 
     except KeyboardInterrupt:
         # Log and stop both processes.

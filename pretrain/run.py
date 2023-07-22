@@ -33,7 +33,7 @@ def init_run_state( self ):
     ).start()
     bt.logging.info( 'Started Axon.')
 
-    # Fetch the current network state (metagraph) from the Subtensor.
+    # Fetch the current network state (metagraph) from Subtensor.
     self.metagraph = self.subtensor.metagraph(self.config.netuid)
     bt.logging.info( 'Synced Metagraph.')
 
