@@ -82,7 +82,7 @@ def run( self ):
 
     # Training loop
     while True:
-        bt.logging.info(f'Starting new epoch: {global_step}')
+        bt.logging.info(f'Starting new epoch: {total_epoch_steps}')
 
         # Fetch the current network state (metagraph) from Subtensor.
         self.metagraph = self.subtensor.metagraph( self.config.netuid )
