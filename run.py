@@ -4,19 +4,21 @@ import time
 import subprocess
 
 def git_has_changes():
-    result = subprocess.run(['git', 'fetch'], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    result = subprocess.run(['git', 'fetch'])
     if result.returncode != 0:
         raise RuntimeError('Error fetching git updates')
     result = subprocess.run(['git', 'diff', 'HEAD', 'origin/main'], stdout=subprocess.PIPE)
     return result.stdout != b''
 
 def git_pull():
-    result = subprocess.run(['git', 'pull'], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    result = subprocess.run(['git', 'pull'])
     if result.returncode != 0:
         raise RuntimeError('Error pulling git updates')
 
 def main():
     try:
+        print('Starting.')
+        os.execv(sys.executable, ['python'] + sys.argv)
         while True:
             if git_has_changes():
                 print('Changes detected. Pulling updates and restarting...')
