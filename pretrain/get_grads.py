@@ -45,7 +45,7 @@ class GetGrads( bt.Synapse ):
         """
         return SimpleNamespace(  
             samples = self.samples, 
-            grads = { name: g.tensor() for name, g in self.grads.items() } 
+            grads = { name: g.tensor() for name, g in self.grads.items() } if self.grads != None else None
         )
 
 def get_grads( self, synapse: GetGrads ) -> GetGrads: 
@@ -66,14 +66,11 @@ def merge_grads( self ):
 
     try:
         # Get axons to merge with.
-        online_axons = [self.metagraph.axons[uid] for uid in get_online_uids( self ) if self.metagraph.hotkeys[uid] != self.wallet.hotkey.ss58_address or self.config.allow_self_grads_merge ]
+        online_axons = [self.metagraph.axons[uid] for uid in get_online_uids( self ) ]
         if len(online_axons) == 0: raise Exception('There are no online uids to average gradients with.')
 
-        # Pick random k to merge with 
-        selected_axons = random.choices( online_axons, min( self.config.grads_merge_k, len( online_axons ) ) )
-
         # Merge gradients.
-        _merge_grads( self, selected_axons )
+        _merge_grads( self, online_axons )
 
     # On error log invalid step.
     except Exception as e:
@@ -90,6 +87,7 @@ def _merge_grads( self, axons: typing.List[ bt.axon ] ):
 
     # Use the dendrite's query function to retrieve the gradients for the online axons
     # If the query function only returns one dictionary, wrap it in a list for the later iteration
+    bt.logging.trace(f'Querying: {axons}')
     responses = self.dendrite.query( axons, GetGrads() )
     if not isinstance(responses, list): responses = [responses]
 
@@ -437,5 +435,6 @@ class TestMergeGrads(unittest.TestCase):
         # Check that the samples have accumulated
         assert len( self.instance.global_accumulated_ids ) == 6
 
+    
 if __name__ == "__main__":
     unittest.main()
