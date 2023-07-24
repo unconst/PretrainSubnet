@@ -65,13 +65,13 @@ def init_config( cls ) -> bt.config:
     parser.add_argument(
         "--steps_till_gradient_apply",
         type = int,
-        default = 1,
+        default = 5,
         help = "Number of steps before we apply the accumulated gradient.",
     )
     parser.add_argument(
         "--steps_till_weights_merge",
         type = int,
-        default = 1,
+        default = 20,
         help = "Number of steps before merge weights with a remote miner.",
     )
     parser.add_argument(

@@ -57,6 +57,9 @@ def init_run_state( self ):
     # Set the model to training mode.
     self.model.train()
 
+    # Merge weights to get the current weight distribution from others
+    merge_weights( self )
+
     bt.logging.info(f'Init run state: Done') 
 
 def run( self ):
@@ -114,11 +117,9 @@ def run( self ):
 
         # Build batch.
         batch = {k: v.to(self.device) for k, v in batch.items()}
-        bt.logging.trace( batch )
 
         # Forward pass
-        outputs = self.model( input_ids = batch['input_ids'], attention_mask = batch['attention_mask'])
-        bt.logging.trace( 'outputs', outputs )
+        outputs = self.model( input_ids = batch['input_ids'], attention_mask = batch['attention_mask'], labels = batch['labels'])
         loss = outputs.loss
 
         # Backward pass
@@ -130,6 +131,23 @@ def run( self ):
 
         # Extend the list of accumualted samples
         self.global_accumulated_ids.extend( batch['id'].tolist() )
+
+        # Log counters.
+        log_event = {
+            'loss': loss.item(),
+            'block': self.current_block,
+            'total_samples_applied': self.total_samples_applied,
+            'local_samples_accumulated': self.local_samples_accumulated,
+            'remote_samples_accumulated': self.remote_samples_accumulated,
+            'global_accumulated_ids': len( self.global_accumulated_ids ),
+            'total_gradient_merges': self.total_gradient_merges,
+            'total_weight_merges': self.total_weight_merges,
+            'total_applied_grads': self.total_applied_grads,
+            'total_graph_synced': self.total_graph_synced,
+            'total_weights_set': self.total_weights_set,
+        }
+        self.wandb.log( log_event )
+        bt.logging.info( log_event ) 
 
         # Merge gradients every steps_till_gradient_merge steps.
         if (global_step + 1) % self.config.steps_till_gradient_merge == 0:
@@ -153,7 +171,7 @@ def run( self ):
                 param.grad /= len( self.global_accumulated_ids )
             self.optimizer.step()
             assert len( self.global_accumulated_ids ) == self.remote_samples_accumulated + self.local_samples_accumulated
-            self.total_samples_applied += len( self.current_samples_accumulated ) # increment all applied samples.
+            self.total_samples_applied += len( self.global_accumulated_ids ) # increment all applied samples.
             self.total_applied_grads += 1 # Increment total applied grads.
             self.remote_samples_accumulated = 0 # Zero out remote accumulated samples
             self.local_samples_accumulated = 0 # Zero out local accumulated samples
@@ -180,23 +198,6 @@ def run( self ):
             )
             self.total_weights_set += 1
 
-
-        # Log counters.
-        log_event = {
-            'loss': loss.item(),
-            'block': self.current_block,
-            'total_samples_applied': self.total_samples_applied,
-            'local_samples_accumulated': self.local_samples_accumulated,
-            'remote_samples_accumulated': self.remote_samples_accumulated,
-            'global_accumulated_ids': len( self.global_accumulated_ids ),
-            'total_gradient_merges': self.total_gradient_merges,
-            'total_weight_merges': self.total_weight_merges,
-            'total_applied_grads': self.total_applied_grads,
-            'total_graph_synced': self.total_graph_synced,
-            'total_weights_set': self.total_weights_set,
-        }
-        self.wandb.log( log_event )
-        bt.logging.info( log_event ) 
 
 
 
