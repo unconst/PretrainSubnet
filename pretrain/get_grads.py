@@ -58,6 +58,8 @@ def get_grads( self, synapse: GetGrads ) -> GetGrads:
     Returns:
         GetGrads object with updated gradients.
     """
+    self.total_grads_shared += 1
+    self.total_samples_shared += len( self.global_accumulated_ids )
     synapse.samples = self.global_accumulated_ids
     synapse.grads = { name: bt.tensor(parameter.grad.clone()) for name, parameter in self.model.named_parameters() if parameter.grad is not None }
     return synapse

@@ -112,6 +112,12 @@ def run( self ):
     # Counter for the number of times we have set weights on chain.
     self.total_weights_set = 0 
 
+    # Counter number of times get_grads was called on us.
+    self.total_grads_shared = 0
+
+    # Counter number samples shared with other miners.
+    self.total_samples_shared = 0
+
     # Loop through epoch.
     for global_step, batch in enumerate( self.dataset.dataloader ):
 
@@ -146,6 +152,8 @@ def run( self ):
             'total_applied_grads': self.total_applied_grads,
             'total_graph_synced': self.total_graph_synced,
             'total_weights_set': self.total_weights_set,
+            'total_grads_shared': self.total_grads_shared,
+            'total_samples_shared': self.total_samples_shared,
         }
         self.wandb.log( log_event )
         bt.logging.info( log_event ) 
