@@ -18,6 +18,7 @@
 import gc
 import torch
 import typing
+import random
 from types import SimpleNamespace
 import bittensor as bt
 from pretrain.misc import get_online_uids
