@@ -78,7 +78,7 @@ def _merge_weights(self, axons: typing.List[ bt.axon ] ):
     """
 
     # Log the start of the weight averaging process.
-    bt.logging.info('Starting the weight averaging process.')
+    bt.logging.debug('Starting the weight averaging process.')
     self.wandb.log({ 'average_weights_event': 1.0 })
 
     # Query all miners for their model weights.
@@ -96,7 +96,7 @@ def _merge_weights(self, axons: typing.List[ bt.axon ] ):
     self.model.load_state_dict( avg_state_dict )
     
     # Log the weights average success.
-    bt.logging.success(f'Successfully averaged {len(state_dicts)} weights.') 
+    bt.logging.debug(f'Successfully averaged {len(state_dicts)} weights.') 
     self.wandb.log({ 'successfully_average_weights': 1.0 })
 
     # Sanity check delete memory

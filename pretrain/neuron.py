@@ -31,7 +31,7 @@ import torch.nn.functional as F
 from transformers import GPT2LMHeadModel, AdamW
 
 from pretrain.config import init_config
-from pretrain.dataset import get_dataloader
+from pretrain.dataset import Dataset
 from pretrain.misc import init_wandb
 from pretrain.run import run
 from pretrain.get_grads import GetGrads, get_grads
@@ -85,11 +85,11 @@ class DMiner:
         bt.logging.debug( 'device: ', self.device )
 
         # Build the dataloader
-        self.dataloader, self.tokenizer = get_dataloader( self )
-        bt.logging.debug( 'dataloader: ', self.dataloader )
+        self.dataset = Dataset( self.config ) 
+        bt.logging.debug( 'dataset: ', self.dataset )
 
         # Load pre-trained model (weights)
-        self.model = GPT2LMHeadModel.from_pretrained('gpt2', pad_token_id = self.tokenizer.eos_token_id)
+        self.model = GPT2LMHeadModel.from_pretrained('gpt2', pad_token_id = self.dataset.tokenizer.eos_token_id)
         bt.logging.debug( 'model: ', self.model )
 
         # Initialize the optimizer

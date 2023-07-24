@@ -57,10 +57,34 @@ def init_config( cls ) -> bt.config:
         help = "Training batch size.",
     )
     parser.add_argument(
-        "--n_acc",
+        "--steps_till_gradient_merge",
         type = int,
         default = 1,
-        help = "Number of steps before we apply an accumulation step.",
+        help = "Number of steps before merge gradients with a remote.",
+    )
+    parser.add_argument(
+        "--steps_till_gradient_apply",
+        type = int,
+        default = 1,
+        help = "Number of steps before we apply the accumulated gradient.",
+    )
+    parser.add_argument(
+        "--steps_till_weights_merge",
+        type = int,
+        default = 1,
+        help = "Number of steps before merge weights with a remote miner.",
+    )
+    parser.add_argument(
+        "--blocks_till_resync",
+        type = int,
+        default = 20,
+        help = "Number of blocks before resyncing the metagraph.",
+    )
+    parser.add_argument(
+        "--blocks_till_set_weights",
+        type = int,
+        default = 50,
+        help = "Number of blocks until the miner sets weights",
     )
 
     # Neuron identification.

@@ -18,6 +18,7 @@
 import gc
 import torch
 import typing
+from types import SimpleNamespace
 import bittensor as bt
 from pretrain.misc import get_online_uids
 
@@ -30,18 +31,21 @@ class GetGrads( bt.Synapse ):
     # Gradients per variable in the model.
     grads: typing.Optional[typing.Dict[str, bt.Tensor]] = None
 
+    # Data samples used to train these gradients.
+    samples: typing.List[ int ] = None
+
     # Define deserialization function
-    def deserialize( self ) -> typing.Dict[ str, torch.FloatTensor ]:
+    def deserialize( self ) -> SimpleNamespace:
         """
         Deserialize method converts the Bittensor gradients to Pytorch tensors.
 
         Returns:
         Dictionary with gradient tensors.
         """
-        if self.grads: 
-            return { name: g.tensor() for name, g in self.grads.items() }
-        else: 
-            return {}
+        return SimpleNamespace(  
+            samples = self.samples, 
+            grads = { name: g.tensor() for name, g in self.grads.items() } 
+        )
 
 def get_grads( self, synapse: GetGrads ) -> GetGrads: 
     """
@@ -53,11 +57,11 @@ def get_grads( self, synapse: GetGrads ) -> GetGrads:
     Returns:
         GetGrads object with updated gradients.
     """
-    synapse.grads = self.saved_grads
+    synapse.samples = self.global_accumulated_ids
+    synapse.grads = { name: bt.tensor(parameter.grad.clone()) for name, parameter in self.model.named_parameters() if parameter.grad is not None }
     return synapse
 
 def merge_grads( self ):
-
 
     try:
         # Get axons to merge with.
@@ -72,38 +76,45 @@ def merge_grads( self ):
         bt.logging.error( f'Failed to merge grads with error {e}')
         self.wandb.log({'successfully_average_gradients': 0.0})
 
-def _merge_grads( self, axons: typing.List[ bt.axon ]  ):
+def _merge_grads( self, axons: typing.List[ bt.axon ] ):
     """
     Function to average the gradients of a model across several online axons.
     """
     # Log that the gradient reduction process is starting
-    bt.logging.info('Reducing gradients.')
+    bt.logging.debug('Reducing gradients.')
     self.wandb.log({'reduce_gradients_event': 1.0})
 
     # Use the dendrite's query function to retrieve the gradients for the online axons
     # If the query function only returns one dictionary, wrap it in a list for the later iteration
-    grad_dicts = self.dendrite.query( axons, GetGrads())
-    if not isinstance(grad_dicts, list): grad_dicts = [grad_dicts]
+    responses = self.dendrite.query( axons, GetGrads() )
+    if not isinstance(responses, list): responses = [responses]
+    print (responses)
 
     # Filter out invalid grads.
     # Check that there are valid gradient dicts to average.
-    valid_grad_dicts = [ grad_dict for grad_dict in grad_dicts if is_valid_grad_dict( self, grad_dict ) ]
-    if len(valid_grad_dicts) == 0: raise Exception('There are no valid gradient dicts.')
-    self.wandb.log( {'n_valid_grad_dicts': len(valid_grad_dicts)} )
+    valid_resps = [ resp for resp in responses if resp is not None and hasattr(resp, 'grads') and hasattr(resp, 'samples') and is_valid_grad_dict( self, resp.grads ) ]
+    if len(valid_resps) == 0: raise Exception('There are no valid gradient dicts.')
+    self.wandb.log( {'n_valid_grad_dicts': len(valid_resps)} )
+
+    # Extend the number of samples accumulates
+    new_samples = []
+    for resp in valid_resps:
+        new_samples.extend( resp.samples )
+    self.global_accumulated_ids.extend( new_samples )
+    self.remote_samples_accumulated += len( new_samples )
 
     # Average the grad dicts.
-    avg_valid_grads_dict = average_grad_dicts( self, valid_grad_dicts )
+    avg_valid_grads_dict = average_grad_dicts( self, [ resp.grads for resp in valid_resps ] )
 
     # Apply the averaged gradients to the model's parameters
     apply_averaged_gradients( self, avg_valid_grads_dict )
 
     # Log the successful reduction of gradients
-    bt.logging.success(f'Successfully reduced {len(grad_dicts)} grads.')
+    bt.logging.debug(f'Successfully reduced {len(valid_resps)} grads with {len(new_samples)} samples.')
     self.wandb.log({'successfully_average_gradients': 1.0})
 
     # Sanity check delete memory
-    del grad_dicts
-    del valid_grad_dicts
+    del responses
     del avg_valid_grads_dict
     torch.cuda.empty_cache() # Clear cache if existent.
     gc.collect()
@@ -128,7 +139,7 @@ def apply_averaged_gradients(self, avg_valid_grads_dict: typing.Dict[str, torch.
             else:
                 param.grad = avg_valid_grads_dict[name].clone().to( self.device )
 
-def average_grad_dicts(self, valid_grad_dicts: typing.List[typing.Dict[str, torch.Tensor]]) -> typing.Dict[str, torch.Tensor]:
+def average_grad_dicts(self, valid_grad_dicts: typing.List[typing.Dict[str, torch.Tensor]], average: bool = False) -> typing.Dict[str, torch.Tensor]:
     """
     This function averages the gradients from a list of valid gradient dictionaries and 
     returns a new gradient dictionary with the averaged gradients.
@@ -136,7 +147,7 @@ def average_grad_dicts(self, valid_grad_dicts: typing.List[typing.Dict[str, torc
     Parameters:
         valid_grad_dicts (list): A list of valid gradient dictionaries. Each gradient dictionary
             typically contains mappings from layer names to corresponding gradients.
-
+        average (bool): If true, the gradients are averaged, rather summed.
     Returns:
         dict: A gradient dictionary with averaged gradients.
     """
@@ -160,7 +171,8 @@ def average_grad_dicts(self, valid_grad_dicts: typing.List[typing.Dict[str, torc
             grad_sum += grad.to(self.device)
 
         # Divide the sum by the number of gradients to get the average (note: this is an in-place operation)
-        grad_sum.div_(len(all_grads))
+        if average:
+            grad_sum.div_(len(all_grads))
 
         # Assign the averaged gradient to the averaged gradients dictionary
         avg_valid_grads_dict[key] = grad_sum.to(self.device)
@@ -248,6 +260,7 @@ class TestMergeGrads(unittest.TestCase):
         self.instance.model = MagicMock()
         self.instance.wandb = MagicMock()
         self.instance.device = 'cpu'
+        self.instance.global_accumulated_ids = []
 
         # Set up some fake model weights
         self.model_weights = { 'fc1.weight': torch.randn(3, 3), 'fc2.weight': torch.randn(3, 3) }
@@ -259,7 +272,7 @@ class TestMergeGrads(unittest.TestCase):
     def test_merge_valid_grad_dict(self):
 
         # Set up the mock to return a state_dict that does not include the weights for 'fc1'
-        self.instance.dendrite.query.return_value = {'fc1.weight': torch.randn(3, 3), 'fc2.weight': torch.randn(3, 3)}
+        self.instance.dendrite.query.return_value = SimpleNamespace( samples =  [1], grads = {'fc1.weight': torch.randn(3, 3), 'fc2.weight': torch.randn(3, 3)} )
 
         # Valid grad dict.
         _merge_grads( self.instance, None )
@@ -269,13 +282,13 @@ class TestMergeGrads(unittest.TestCase):
         'fc1.weight': torch.stack(
             [
                 self.model_weights['fc1.weight'], 
-                self.instance.dendrite.query()['fc1.weight']
+                self.instance.dendrite.query().grads['fc1.weight']
             ]).mean(dim=0),
         'fc2.weight': torch.stack(
             [
                 self.model_weights['fc2.weight'], 
-                self.instance.dendrite.query()['fc1.weight']
-            ]).mean(dim=0)
+                self.instance.dendrite.query().grads['fc1.weight']
+            ]).sum(dim=0)
         }
 
         # Verify the model's grads were updated correctly
@@ -286,8 +299,8 @@ class TestMergeGrads(unittest.TestCase):
 
         # Set up the mock to return a state_dict that does not include the weights for 'fc1'
         self.instance.dendrite.query.return_value = [
-             {'fc1.weight': torch.randn(3, 3), 'fc2.weight': torch.randn(3, 3)},
-             {'fc1.weight': torch.randn(3, 3), 'fc2.weight': torch.randn(3, 3)}
+            SimpleNamespace( samples = [1], grads = {'fc1.weight': torch.randn(3, 3), 'fc2.weight': torch.randn(3, 3)}),
+            SimpleNamespace( samples = [1], grads = {'fc1.weight': torch.randn(3, 3), 'fc2.weight': torch.randn(3, 3)})
         ]
 
         # Valid grad dict.
@@ -298,16 +311,16 @@ class TestMergeGrads(unittest.TestCase):
         'fc1.weight': torch.stack(
             [
                 self.model_weights['fc1.weight'], 
-                self.instance.dendrite.query()[0]['fc1.weight'],
-                self.instance.dendrite.query()[1]['fc1.weight']
+                self.instance.dendrite.query()[0].grads['fc1.weight'],
+                self.instance.dendrite.query()[1].grads['fc1.weight']
 
             ]).mean(dim=0),
         'fc2.weight': torch.stack(
             [
                 self.model_weights['fc2.weight'], 
-                self.instance.dendrite.query()[0]['fc2.weight'],
-                self.instance.dendrite.query()[1]['fc2.weight']
-            ]).mean(dim=0)
+                self.instance.dendrite.query()[0].grads['fc2.weight'],
+                self.instance.dendrite.query()[1].grads['fc2.weight']
+            ]).sum(dim=0)
         }
 
         # Verify the model's grads were updated correctly
@@ -319,11 +332,11 @@ class TestMergeGrads(unittest.TestCase):
 
         # Set up the mock to return a state_dict that does not include the weights for 'fc1'
         self.instance.dendrite.query.return_value = [
-            {'fc1.weight': torch.randn(3, 3), 'fc2.weight': torch.randn(3, 3)},
-            {'fc1.weight': torch.randn(3, 3), 'fc2.weight': torch.randn(3, 3)},
-            {'fc1.weight': torch.randn(3, 4), 'fc2.weight': torch.randn(3, 3)},
-            {'fc1.weight': None, 'fc2.weight': torch.randn(3, 3)},
-            None,
+            SimpleNamespace( samples = [1], grads = {'fc1.weight': torch.randn(3, 3), 'fc2.weight': torch.randn(3, 3)}),
+            SimpleNamespace( samples = [1], grads = {'fc1.weight': torch.randn(3, 3), 'fc2.weight': torch.randn(3, 3)}),
+            SimpleNamespace( samples = [1], grads = {'fc1.weight': torch.randn(3, 4), 'fc2.weight': torch.randn(3, 3)}),
+            SimpleNamespace( samples = [1], grads = {'fc1.weight': None, 'fc2.weight': torch.randn(3, 3)}),
+            SimpleNamespace( samples = [1], grads = None ),
         ]
 
         # Valid grad dict.
@@ -334,16 +347,16 @@ class TestMergeGrads(unittest.TestCase):
         'fc1.weight': torch.stack(
             [
                 self.model_weights['fc1.weight'], 
-                self.instance.dendrite.query()[0]['fc1.weight'],
-                self.instance.dendrite.query()[1]['fc1.weight']
+                self.instance.dendrite.query()[0].grads['fc1.weight'],
+                self.instance.dendrite.query()[1].grads['fc1.weight']
 
             ]).mean(dim=0),
         'fc2.weight': torch.stack(
             [
                 self.model_weights['fc2.weight'], 
-                self.instance.dendrite.query()[0]['fc2.weight'],
-                self.instance.dendrite.query()[1]['fc2.weight']
-            ]).mean(dim=0)
+                self.instance.dendrite.query()[0].grads['fc2.weight'],
+                self.instance.dendrite.query()[1].grads['fc2.weight']
+            ]).sum(dim=0)
         }
 
         # Verify the model's grads were updated correctly
@@ -370,7 +383,7 @@ class TestMergeGrads(unittest.TestCase):
 
     def test_return_is_invalid_name(self):
         # Set up the mock to return a state_dict that does not include the weights for 'fc1'
-        self.instance.dendrite.query.return_value = {'fc1.weight': torch.randn(3, 3), 'fc2.weightkansdsa': torch.randn(3, 3)}
+        self.instance.dendrite.query.return_value = SimpleNamespace( samples = [1], grads = {'fc1.weight': torch.randn(3, 3), 'fc2.weightkansdsa': torch.randn(3, 3)})
 
         # No valid grad dicts.
         with pytest.raises(Exception) as excinfo:
@@ -379,7 +392,7 @@ class TestMergeGrads(unittest.TestCase):
 
     def test_return_is_invalid_none(self):
         # Set up the mock to return a state_dict that does not include the weights for 'fc1'
-        self.instance.dendrite.query.return_value = {'fc1.weight': torch.randn(3, 3), 'fc2.weightkansdsa': None}
+        self.instance.dendrite.query.return_value = SimpleNamespace( samples = [1], grads = {'fc1.weight': torch.randn(3, 3), 'fc2.weightkansdsa': None})
 
         # No valid grad dicts.
         with pytest.raises(Exception) as excinfo:
@@ -388,7 +401,7 @@ class TestMergeGrads(unittest.TestCase):
 
     def test_return_is_invalid_dtype(self):
         # Set up the mock to return a state_dict that does not include the weights for 'fc1'
-        self.instance.dendrite.query.return_value = {'fc1.weight': torch.randint(0, 10, (3, 3), dtype=torch.int64), 'fc2.weightkansdsa':  torch.randint(0, 10, (3, 3), dtype=torch.int64)}
+        self.instance.dendrite.query.return_value = SimpleNamespace( samples = [1], grads = {'fc1.weight': torch.randint(0, 10, (3, 3), dtype=torch.int64), 'fc2.weightkansdsa':  torch.randint(0, 10, (3, 3), dtype=torch.int64)})
 
         # No valid grad dicts.
         with pytest.raises(Exception) as excinfo:
@@ -397,13 +410,29 @@ class TestMergeGrads(unittest.TestCase):
 
     def test_invalid_dimension(self):
         # Set up the mock to return a state_dict that does not include the weights for 'fc1'
-        self.instance.dendrite.query.return_value = {'fc1.weight': torch.randn(3, 4), 'fc2.weight': torch.randn(3, 3)}
+        self.instance.dendrite.query.return_value = SimpleNamespace( samples = [1], grads = {'fc1.weight': torch.randn(3, 4), 'fc2.weight': torch.randn(3, 3)} )
 
         # No valid grad dicts.
         with pytest.raises(Exception) as excinfo:
             _merge_grads( self.instance, None )
         assert "There are no valid gradient dicts." in str(excinfo.value)
 
+    def test_samples_accumulate(self):
+        # Set up the mock to return a state_dict that does not include the weights for 'fc1'
+        self.instance.dendrite.query.return_value = [
+                SimpleNamespace( samples = [1], grads = {'fc1.weight': torch.randn(3, 3), 'fc2.weight': torch.randn(3, 3)} ),
+                SimpleNamespace( samples = [1], grads = {'fc1.weight': torch.randn(3, 3), 'fc2.weight': torch.randn(3, 3)} ),
+                SimpleNamespace( samples = [1], grads = {'fc1.weight': torch.randn(3, 3), 'fc2.weight': torch.randn(3, 3)} ),
+                SimpleNamespace( samples = [1], grads = {'fc1.weight': torch.randn(3, 3), 'fc2.weight': torch.randn(3, 3)} ),
+                SimpleNamespace( samples = [1], grads = {'fc1.weight': torch.randn(3, 3), 'fc2.weight': torch.randn(3, 3)} ),
+                SimpleNamespace( samples = [1], grads = {'fc1.weight': torch.randn(3, 3), 'fc2.weight': torch.randn(3, 3)} ),
+            ]
+
+        # Merge grads.
+        _merge_grads( self.instance, None )
+
+        # Check that the samples have accumulated
+        assert len( self.instance.global_accumulated_ids ) == 6
 
 if __name__ == "__main__":
     unittest.main()

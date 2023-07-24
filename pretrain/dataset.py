@@ -19,29 +19,39 @@ from datasets import load_dataset
 from torch.utils.data import DataLoader
 from transformers import DataCollatorForLanguageModeling, GPT2Tokenizer
 
-def get_dataloader( self ) -> DataLoader:
+class Dataset:
 
-    # Define batch size.
-    batch_size = self.config.bs
+    def __init__( self, config ):
 
-    # Load the 'wikitext' dataset
-    wikitext_dataset = load_dataset('wikitext', 'wikitext-2-raw-v1')['train']
+        self.config = config
+        
+        # Define batch size.
+        self.batch_size = self.config.bs
 
-    # Load pre-trained model tokenizer (vocabulary)
-    tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
+        # Load the 'wikitext' dataset
+        self.wikitext_dataset = load_dataset('wikitext', 'wikitext-2-raw-v1')['train']
 
-    # Add a padding token and set it to the same as the EOS token
-    tokenizer.pad_token = tokenizer.eos_token
+        # Load pre-trained model tokenizer (vocabulary)
+        self.tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
 
-    # Tokenize the training_dataset
-    def encode(examples): return tokenizer(examples['text'])
-    train_dataset = wikitext_dataset.map( encode, batched = True, remove_columns = ['text']) 
+        # Add a padding token and set it to the same as the EOS token
+        self.tokenizer.pad_token = self.tokenizer.eos_token
 
-    # Build the dataset collator.
-    data_collator = DataCollatorForLanguageModeling( tokenizer = tokenizer, mlm = False, pad_to_multiple_of = 128 )
+        # Tokenize the training_dataset
+        def encode(examples):
+            # Encode the text and generate a unique id for each example in the batch.
+            encodings = self.tokenizer(examples['text'])
+            return {'input_ids': encodings['input_ids'], 'attention_mask': encodings['attention_mask']}
 
-    # Create a DataLoader
-    dataloader = DataLoader( train_dataset, batch_size = batch_size, shuffle = True, collate_fn = data_collator )
+        # Tokenize the training_dataset
+        self.train_dataset = self.wikitext_dataset.map(encode, batched=True, remove_columns=['text'])
 
-    return dataloader, tokenizer
- 
+        # Add unique ids to the dataset
+        self.train_dataset = self.train_dataset.map(lambda example, idx: {'id': idx}, with_indices=True)
+
+        # Build the dataset collator.
+        self.data_collator = DataCollatorForLanguageModeling( tokenizer = self.tokenizer, mlm = False, pad_to_multiple_of = 128 )
+
+        # Create a DataLoader
+        self.dataloader = DataLoader( self.train_dataset, batch_size = self.batch_size, shuffle = True, collate_fn = self.data_collator )
+    

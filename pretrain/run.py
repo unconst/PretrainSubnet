@@ -54,8 +54,10 @@ def init_run_state( self ):
         bt.logging.info( 'Set weights ')
         self.wandb.log({ 'set_weights': 1.0 })
 
-    bt.logging.info(f'Init run state: Done')
+    # Set the model to training mode.
+    self.model.train()
 
+    bt.logging.info(f'Init run state: Done') 
 
 def run( self ):
     """
@@ -73,100 +75,129 @@ def run( self ):
     Finally, it evaluates the model on the test set, logs the results, and waits for the 
     next training epoch to start.
     """
+
+    # Set up axon, set weights, sync graph.
     init_run_state( self )
 
-    # Initialize step counter
-    total_epoch_steps = 0
-    total_training_steps = 0
-    total_accumulation_steps = 0
-    total_accumulated_samples = 0
+    # Current block counter.
+    self.current_block = self.subtensor.block 
     
-    # Training loop
-    while True:
-        bt.logging.info(f'Starting new epoch: {total_epoch_steps}')
+    # List of data indices accumulated so far (via gradients merging and local training)
+    self.global_accumulated_ids = []
 
-        # Fetch the current network state (metagraph) from Subtensor.
-        self.metagraph = self.subtensor.metagraph( self.config.netuid )
-        bt.logging.info(f'Synced Metagraph: {self.metagraph}')
+    # Counter for samples accumulated from remote host.
+    self.remote_samples_accumulated = 0
 
-        online_uids = get_online_uids( self )
-        bt.logging.info( f'Online UIDS {online_uids}')
-        self.wandb.log({ 'n_online': len( online_uids ) })
+    # Counter for samples accumulated during this step.
+    self.local_samples_accumulated = 0
 
-        # Set the model to training mode.
-        self.model.train()
+    # Counter for total samples applied across all steps.
+    self.total_samples_applied = 0
 
-        # Clear out all existing gradients in the model.
-        self.optimizer.zero_grad()
+    # Counter for the number of times we have merged gradients.
+    self.total_gradient_merges = 0 
 
-        # Merge weights
-        merge_weights( self )
+    # Counter for the number of times we have merged weights.
+    self.total_weight_merges = 0 
 
-        # Train on epoch.
-        for acc_step, batch in enumerate( self.dataloader ):
-            num_accumulated = (acc_step +1) % self.config.n_acc * self.config.bs
-            total_to_accumulate = self.config.n_acc * self.config.bs
-            bt.logging.success(f'Step: { num_accumulated }/{ total_to_accumulate }, Accumulations: {total_accumulation_steps}, Training: {total_training_steps}, Epoch: {total_epoch_steps}')
+    # Counter for the number of times we have applied gradients.
+    self.total_applied_grads = 0 
 
-            # Zero out gradients calculated in the previous iteration.
-            # and save them for others to query.
-            self.saved_grads = { name: bt.tensor(parameter.grad.clone()) for name, parameter in self.model.named_parameters() if parameter.grad is not None }
-            self.optimizer.zero_grad()
+    # Counter for the number of times we have synced the metagraph.
+    self.total_graph_synced = 0 
 
-            # Move the batch tensors to the same device as the model
-            batch = {k: v.to(self.device) for k, v in batch.items()}
+    # Counter for the number of times we have set weights on chain.
+    self.total_weights_set = 0 
 
-            # Forward pass
-            outputs = self.model(**batch)
-            loss = outputs.loss
+    # Loop through epoch.
+    for global_step, batch in enumerate( self.dataset.dataloader ):
 
-            # Backward pass
-            loss.backward()
+        # Build batch.
+        batch = {k: v.to(self.device) for k, v in batch.items()}
+        bt.logging.trace( batch )
 
-            # Inc total_accumulation steps.
-            if ( acc_step + 1 ) % self.config.n_acc == 0:
-                bt.logging.success(f'Finished accumulating: Running training step.')
+        # Forward pass
+        outputs = self.model( input_ids = batch['input_ids'], attention_mask = batch['attention_mask'])
+        bt.logging.trace( 'outputs', outputs )
+        loss = outputs.loss
 
-                # Average across accumulations.
-                for param in self.model.parameters():
-                    param.grad /= self.config.n_acc 
+        # Backward pass
+        loss.backward()
 
-                # Average local gradients with remote.
-                merge_grads( self )
+        # Increment counters.
+        self.current_block = self.subtensor.block 
+        self.local_samples_accumulated += self.config.bs
 
-                # Update the weights
-                self.optimizer.step()
+        # Extend the list of accumualted samples
+        self.global_accumulated_ids.extend( batch['id'].tolist() )
 
-                # Log the loss value for this batch.
-                total_training_steps += 1
+        # Merge gradients every steps_till_gradient_merge steps.
+        if (global_step + 1) % self.config.steps_till_gradient_merge == 0:
+            # Picks up to K miners and merges gradients with them.
+            bt.logging.debug(f'Merging gradients.')
+            merge_grads( self )
+            self.total_gradient_merges += 1
 
-                # Set weights if required.
-                if self.subtensor.block - self.metagraph.last_update[ self.my_uid ] > 75:
-                    self.subtensor.set_weights( 
-                        netuid = self.config.netuid, 
-                        wallet = self.wallet, 
-                        uids = [self.my_uid], 
-                        weights = [1.0],
-                        wait_for_inclusion = False,
-                        wait_for_finalization = False,
-                    )
-                    bt.logging.success( 'Set weights ')
-                    self.wandb.log({ 'set_weights': 1.0 })
-            
-            # Log all params. 
-            total_accumulation_steps += 1
-            total_accumulated_samples += self.config.bs
-            torch.cuda.empty_cache() # Clear cache if existent.
-            self.wandb.log({ 'block': self.subtensor.block })
-            self.wandb.log({ 'total_accumulated_samples': total_accumulated_samples })
-            self.wandb.log({ 'total_training_steps': total_training_steps })
-            self.wandb.log({ 'total_accumulation_steps': total_accumulation_steps })
-            self.wandb.log({ 'train_loss': loss })
-            bt.logging.success(f"Loss: {loss.item()}") 
+        # Merge weights every steps_till_weights_merge steps.
+        if (global_step + 1) % self.config.steps_till_weights_merge == 0:
+            # Picks up to K miners and merges weights with them.
+            bt.logging.debug(f'Merging weights.')
+            merge_weights( self )
+            self.total_weight_merges += 1
 
-        # Log finished epoch
-        total_epoch_steps += 1
-        self.wandb.log({ 'total_epoch_steps': total_epoch_steps })
-        bt.logging.success(f'Finished epoch: { total_epoch_steps }')
+        # If we reached our accumulation level, apply the gradients.
+        if (global_step + 1) % self.config.steps_till_gradient_apply == 0:
+            # Apply accumulated gradients to the model state.
+            bt.logging.debug(f'Applying gradients.')
+            for param in self.model.parameters():
+                param.grad /= len( self.global_accumulated_ids )
+            self.optimizer.step()
+            assert len( self.global_accumulated_ids ) == self.remote_samples_accumulated + self.local_samples_accumulated
+            self.total_samples_applied += len( self.current_samples_accumulated ) # increment all applied samples.
+            self.total_applied_grads += 1 # Increment total applied grads.
+            self.remote_samples_accumulated = 0 # Zero out remote accumulated samples
+            self.local_samples_accumulated = 0 # Zero out local accumulated samples
+            self.global_accumulated_ids = [] # Zero out accumualted samples.
+
+        # Sync the graph every blocks_till_resync blocks.
+        if self.current_block % self.config.blocks_till_resync == 0: 
+            # Fetch the current network state (metagraph) from Subtensor.
+            bt.logging.debug(f'Syncing metagraph.')
+            self.metagraph = self.subtensor.metagraph( self.config.netuid )
+            self.total_graph_synced += 1
+
+        # Set weights every blocks_till_set_weights blocks
+        if self.current_block % self.config.blocks_till_set_weights == 0:
+            # Set weights on chain for ping.
+            bt.logging.debug(f'Setting weights.')
+            self.subtensor.set_weights( 
+                netuid = self.config.netuid, 
+                wallet = self.wallet, 
+                uids = [self.my_uid], 
+                weights = [1.0],
+                wait_for_inclusion = False,
+                wait_for_finalization = False,
+            )
+            self.total_weights_set += 1
+
+
+        # Log counters.
+        log_event = {
+            'loss': loss.item(),
+            'block': self.current_block,
+            'total_samples_applied': self.total_samples_applied,
+            'local_samples_accumulated': self.local_samples_accumulated,
+            'remote_samples_accumulated': self.remote_samples_accumulated,
+            'global_accumulated_ids': len( self.global_accumulated_ids ),
+            'total_gradient_merges': self.total_gradient_merges,
+            'total_weight_merges': self.total_weight_merges,
+            'total_applied_grads': self.total_applied_grads,
+            'total_graph_synced': self.total_graph_synced,
+            'total_weights_set': self.total_weights_set,
+        }
+        self.wandb.log( log_event )
+        bt.logging.info( log_event ) 
+
+
 
 
