@@ -87,7 +87,7 @@ def _merge_grads( self, axons: typing.List[ bt.axon ] ):
 
     # Use the dendrite's query function to retrieve the gradients for the online axons
     # If the query function only returns one dictionary, wrap it in a list for the later iteration
-    bt.logging.trace(f'Querying: {axons}')
+    bt.logging.debug(f'Querying: {axons}')
     responses = self.dendrite.query( axons, GetGrads() )
     if not isinstance(responses, list): responses = [responses]
 
