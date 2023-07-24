@@ -65,11 +65,14 @@ def merge_grads( self ):
 
     try:
         # Get axons to merge with.
-        online_axons = [self.metagraph.axons[uid] for uid in get_online_uids( self )]
+        online_axons = [self.metagraph.axons[uid] for uid in get_online_uids( self ) if self.metagraph.hotkeys[uid] != self.wallet.hotkey.ss58_address or self.config.allow_self_grads_merge ]
         if len(online_axons) == 0: raise Exception('There are no online uids to average gradients with.')
 
+        # Pick random k to merge with 
+        selected_axons = random.choices( online_axons, min( self.config.grads_merge_k, len( online_axons ) ) )
+
         # Merge gradients.
-        _merge_grads( self, online_axons )
+        _merge_grads( self, selected_axons )
 
     # On error log invalid step.
     except Exception as e:
@@ -88,7 +91,6 @@ def _merge_grads( self, axons: typing.List[ bt.axon ] ):
     # If the query function only returns one dictionary, wrap it in a list for the later iteration
     responses = self.dendrite.query( axons, GetGrads() )
     if not isinstance(responses, list): responses = [responses]
-    print (responses)
 
     # Filter out invalid grads.
     # Check that there are valid gradient dicts to average.

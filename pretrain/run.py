@@ -134,6 +134,7 @@ def run( self ):
 
         # Log counters.
         log_event = {
+            'global_step': global_step,
             'loss': loss.item(),
             'block': self.current_block,
             'total_samples_applied': self.total_samples_applied,

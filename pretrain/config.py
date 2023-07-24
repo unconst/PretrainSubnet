@@ -57,6 +57,18 @@ def init_config( cls ) -> bt.config:
         help = "Training batch size.",
     )
     parser.add_argument(
+        "--allow_self_grads_merge",
+        action="store_true",
+        default=False,
+        help="Allows the miner to merge gradients with itself.",
+    )
+    parser.add_argument(
+        "--grads_merge_k",
+        type = int,
+        default = 5,
+        help = "Number of neighbors to merge gradients with.",
+    )
+    parser.add_argument(
         "--steps_till_gradient_merge",
         type = int,
         default = 1,
