@@ -67,12 +67,32 @@ def get_grads( self, synapse: GetGrads ) -> GetGrads:
 def merge_grads( self ):
 
     try:
+        
+        available_axons = []
+        # Filter out all uids that we should not merge with.
+        for uid in self.metagraph.uids:
+
+            # Filter dead neurons.
+            if self.current_block - self.metagraph.last_update[ uid ] > 100: 
+                continue
+            
+            # Filter myself
+            elif self.metagraph.hotkeys[ uid ] == self.wallet.hotkey.ss58_address: 
+                continue
+
+            # Filter axons I have merged with this round
+            elif self.metagraph.hotkeys[ uid ] in self.merged_with_this_round: 
+                continue
+
+            # otherwise this peer is available to merge with
+            else:
+                available_axons.append( self.metagraph.axons[uid] )
+
         # Get axons to merge with.
-        online_axons = [self.metagraph.axons[uid] for uid in get_online_uids( self ) ]
-        if len(online_axons) == 0: raise Exception('There are no online uids to average gradients with.')
+        if len(available_axons) == 0: raise Exception('There are no online uids to average gradients with.')
 
         # Merge gradients.
-        _merge_grads( self, online_axons )
+        _merge_grads( self, available_axons )
 
     # On error log invalid step.
     except Exception as e:
