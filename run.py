@@ -49,8 +49,17 @@ class Process:
     def is_alive(self):
         """Check if the process is still running"""
         return self.process is not None and self.process.poll() is None
+    
 
-def git_has_changes():
+def get_version() -> str:
+    """Function to get the version number from pretrain/__init__.py file."""
+    with open('pretrain/__init__.py') as file:
+        lines = file.readlines()
+        for line in lines:
+            if line.startswith('__version__'):
+                return line.split('=')[1].strip().strip("'")
+
+def git_has_changes() -> bool:
     """
     Function to check if there are any changes on the current git branch.
     If changes are detected, it also re-installs the package.
@@ -62,14 +71,22 @@ def git_has_changes():
     if result.returncode != 0:
         raise RuntimeError('Error fetching git updates')
 
-    result = subprocess.run(['git', 'diff', current_branch, 'origin/'+current_branch], stdout=subprocess.PIPE)
+    # Get local version
+    local_version = get_version()
 
-    # If changes detected, re-install the package
-    if result.stdout != b'':
+    # Get remote version by temporarily checking out remote branch
+    subprocess.run(['git', 'checkout', f'origin/{current_branch}'])
+    remote_version = get_version()
+
+    # Check back to local branch
+    subprocess.run(['git', 'checkout', current_branch])
+
+    # If version has increased, re-install the package
+    if remote_version != local_version:
         bt.logging.success(f'Reinstalling pretrain package with updates' )
         subprocess.run(['pip', 'install', '.'], check=True)
 
-    return result.stdout != b''
+    return remote_version != local_version
 
 def git_pull():
     """
