@@ -26,6 +26,10 @@ def init_run_state( self ):
 
     self.subtensor.register(wallet = self.wallet, netuid = self.config.netuid )
 
+    # Fetch the current network state (metagraph) from Subtensor.
+    self.metagraph = self.subtensor.metagraph(self.config.netuid)
+    bt.logging.info( 'Synced Metagraph.')
+
     # Build, attach, serve and start Axon for communication with other miners.
     self.axon.serve( 
         netuid = self.config.netuid, 
@@ -46,9 +50,10 @@ def init_run_state( self ):
         bt.logging.info( 'Set weights ')
         self.wandb.log({ 'set_weights': 1.0 })
 
-    # Fetch the current network state (metagraph) from Subtensor.
+
+    # Re-fetch the current network state (metagraph) from Subtensor.
     self.metagraph = self.subtensor.metagraph(self.config.netuid)
-    bt.logging.info( 'Synced Metagraph.')
+    bt.logging.info( 'Re-synced Metagraph.')
 
     # Fetch my uid.
     self.my_uid = self.metagraph.hotkeys.index( self.wallet.hotkey.ss58_address )
