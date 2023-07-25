@@ -33,15 +33,7 @@ def init_run_state( self ):
     ).start()
     bt.logging.info( 'Started Axon.')
 
-    # Fetch the current network state (metagraph) from Subtensor.
-    self.metagraph = self.subtensor.metagraph(self.config.netuid)
-    bt.logging.info( 'Synced Metagraph.')
-
-    # Fetch my uid.
-    self.my_uid = self.metagraph.hotkeys.index( self.wallet.hotkey.ss58_address )
-    bt.logging.info( f'Got uid {self.my_uid} ')
-
-    # Set ping weights.
+    # Set weights if we are required.
     if self.subtensor.block - self.metagraph.last_update[ self.my_uid ] > 50:
         self.subtensor.set_weights( 
             netuid = self.config.netuid, 
@@ -54,6 +46,14 @@ def init_run_state( self ):
         bt.logging.info( 'Set weights ')
         self.wandb.log({ 'set_weights': 1.0 })
 
+    # Fetch the current network state (metagraph) from Subtensor.
+    self.metagraph = self.subtensor.metagraph(self.config.netuid)
+    bt.logging.info( 'Synced Metagraph.')
+
+    # Fetch my uid.
+    self.my_uid = self.metagraph.hotkeys.index( self.wallet.hotkey.ss58_address )
+    bt.logging.info( f'Got uid {self.my_uid} ')
+
     # Set the model to training mode.
     self.model.train()
 
@@ -64,19 +64,7 @@ def init_run_state( self ):
 
 def run( self ):
     """
-    This method is the main loop that runs the training for the miner. It first registers
-    the miner's wallet, sets up the communication infrastructure (axon), retrieves the
-    current network state (metagraph), and averages the weights from the network miners.
-
-    Then, it enters a loop where it retrieves the metagraph at each step, computes
-    gradients from the local data batch, saves these gradients, retrieves gradients from
-    other miners, applies these gradients to the local model, and steps the optimizer.
-
-    After processing all the batches, the function again averages the weights from the 
-    network miners.
-
-    Finally, it evaluates the model on the test set, logs the results, and waits for the 
-    next training epoch to start.
+    Main training loop.
     """
 
     # Set up axon, set weights, sync graph.
