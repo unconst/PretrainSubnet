@@ -88,10 +88,12 @@ def merge_grads( self ):
                 available_axons.append( self.metagraph.axons[uid] )
 
         # Get axons to merge with.
-        if len(available_axons) == 0: raise Exception('There are no online uids to average gradients with.')
+        if len(available_axons) == 0: 
+            raise Exception('There are no online uids to average gradients with.')
 
         # Merge gradients.
-        _merge_grads( self, available_axons )
+        axon_sample = random.choices( available_axons, k = min( self.config.grads_merge_max_k, len( available_axons ) ) )
+        _merge_grads( self, axon_sample )
 
     # On error log invalid step.
     except Exception as e:

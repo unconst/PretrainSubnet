@@ -63,10 +63,10 @@ def init_config( cls ) -> bt.config:
         help="Allows the miner to merge gradients with itself.",
     )
     parser.add_argument(
-        "--grads_merge_k",
+        "--grads_merge_max_k",
         type = int,
-        default = 5,
-        help = "Number of neighbors to merge gradients with.",
+        default = 2,
+        help = "The max number of neighbors to merge gradients with.",
     )
     parser.add_argument(
         "--steps_till_gradient_merge",
