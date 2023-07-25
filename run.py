@@ -82,6 +82,8 @@ def git_has_changes() -> bool:
     subprocess.run(['git', 'checkout', current_branch])
 
     # If version has increased, re-install the package
+    bt.logging.success( f"local version: {local_version} remote_version:{remote_version}")
+
     if remote_version != local_version:
         bt.logging.success(f'Reinstalling pretrain package with updates' )
         subprocess.run(['pip', 'install', '.'], check=True)
