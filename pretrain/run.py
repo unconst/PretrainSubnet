@@ -30,6 +30,10 @@ def init_run_state( self ):
     self.metagraph = self.subtensor.metagraph(self.config.netuid)
     bt.logging.info( 'Synced Metagraph.')
 
+    # Fetch my uid.
+    self.my_uid = self.metagraph.hotkeys.index( self.wallet.hotkey.ss58_address )
+    bt.logging.info( f'Got uid {self.my_uid} ')
+
     # Build, attach, serve and start Axon for communication with other miners.
     self.axon.serve( 
         netuid = self.config.netuid, 
@@ -50,14 +54,9 @@ def init_run_state( self ):
         bt.logging.info( 'Set weights ')
         self.wandb.log({ 'set_weights': 1.0 })
 
-
     # Re-fetch the current network state (metagraph) from Subtensor.
     self.metagraph = self.subtensor.metagraph(self.config.netuid)
     bt.logging.info( 'Re-synced Metagraph.')
-
-    # Fetch my uid.
-    self.my_uid = self.metagraph.hotkeys.index( self.wallet.hotkey.ss58_address )
-    bt.logging.info( f'Got uid {self.my_uid} ')
 
     # Set the model to training mode.
     self.model.train()
@@ -80,6 +79,9 @@ def run( self ):
     
     # List of data indices accumulated so far (via gradients merging and local training)
     self.global_accumulated_ids = []
+
+    # List of axons hotkeys we have merged with this around already
+    self.hotkeys_seen_this_round = set()
 
     # Counter for samples accumulated from remote host.
     self.remote_samples_accumulated = 0
@@ -178,6 +180,7 @@ def run( self ):
             self.remote_samples_accumulated = 0 # Zero out remote accumulated samples
             self.local_samples_accumulated = 0 # Zero out local accumulated samples
             self.global_accumulated_ids = [] # Zero out accumualted samples.
+            self.hotkeys_seen_this_round = set() # Zero out peers we've seen this round.
 
         # Sync the graph every blocks_till_resync blocks.
         if self.current_block % self.config.blocks_till_resync == 0: 

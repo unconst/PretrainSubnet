@@ -67,7 +67,6 @@ def get_grads( self, synapse: GetGrads ) -> GetGrads:
 def merge_grads( self ):
 
     try:
-        
         available_axons = []
         # Filter out all uids that we should not merge with.
         for uid in self.metagraph.uids:
@@ -81,7 +80,7 @@ def merge_grads( self ):
                 continue
 
             # Filter axons I have merged with this round
-            elif self.metagraph.hotkeys[ uid ] in self.merged_with_this_round: 
+            elif self.metagraph.hotkeys[ uid ] in self.hotkeys_seen_this_round: 
                 continue
 
             # otherwise this peer is available to merge with
@@ -112,6 +111,9 @@ def _merge_grads( self, axons: typing.List[ bt.axon ] ):
     bt.logging.info(f'Querying: {axons}')
     responses = self.dendrite.query( axons, GetGrads() )
     if not isinstance(responses, list): responses = [responses]
+
+    # Save hotkeys we have merged with this round already.
+    for axon in axons: self.hotkeys_seen_this_round.add( axon.hotkey )
 
     # Filter out invalid grads.
     # Check that there are valid gradient dicts to average.

@@ -127,7 +127,7 @@ def main():
                 bt.logging.success('No changes detected. Continuing.')
 
             # Wait 3 minutes.
-            time.sleep(180)
+            time.sleep(360)
 
     except KeyboardInterrupt:
         # Log and stop both processes.
