@@ -43,6 +43,13 @@ def init_config( cls ) -> bt.config:
         help="The chain endpoint to connect with.", 
     )
 
+    parser.add_argument(
+        "--local",
+        action="store_true",
+        default=False,
+        help="Runs training without remote merges.",
+    )
+
     # Training parameters.
     parser.add_argument(
         "--lr",

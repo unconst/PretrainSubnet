@@ -159,14 +159,14 @@ def run( self ):
             bt.logging.info( "\n" + pprint.pformat(log_event) ) 
 
             # Merge gradients every steps_till_gradient_merge steps.
-            if (global_step + 1) % self.config.steps_till_gradient_merge == 0:
+            if (global_step + 1) % self.config.steps_till_gradient_merge == 0 and not self.config.local:
                 # Picks up to K miners and merges gradients with them.
                 bt.logging.debug(f'Merging gradients.')
                 merge_grads( self )
                 self.total_gradient_merges += 1
 
             # Merge weights every steps_till_weights_merge steps.
-            if (global_step + 1) % self.config.steps_till_weights_merge == 0:
+            if (global_step + 1) % self.config.steps_till_weights_merge == 0 and not self.config.local:
                 # Picks up to K miners and merges weights with them.
                 bt.logging.debug(f'Merging weights.')
                 merge_weights( self )
