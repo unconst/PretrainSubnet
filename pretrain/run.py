@@ -118,102 +118,105 @@ def run( self ):
     self.total_samples_shared = 0
 
     # Loop through epoch.
-    for global_step, batch in enumerate( self.dataset.dataloader ):
-        try:
+    for epoch in range( 10 ):
+        for global_step, batch in enumerate( self.dataset.dataloader ):
+            try:
 
-            # Build batch.
-            batch = {k: v.to(self.device) for k, v in batch.items()}
+                # Build batch.
+                batch = {k: v.to(self.device) for k, v in batch.items()}
 
-            # Forward pass
-            outputs = self.model( input_ids = batch['input_ids'], attention_mask = batch['attention_mask'], labels = batch['labels'])
-            loss = outputs.loss
+                # Forward pass
+                outputs = self.model( input_ids = batch['input_ids'], attention_mask = batch['attention_mask'], labels = batch['labels'])
+                loss = outputs.loss
 
-            # Backward pass
-            loss.backward()
+                # Backward pass
+                loss.backward()
 
-            # Increment counters.
-            self.current_block = self.subtensor.block 
-            self.local_samples_accumulated += self.config.bs
+                # Increment counters.
+                self.current_block = self.subtensor.block 
+                self.local_samples_accumulated += self.config.bs
 
-            # Extend the list of accumualted samples
-            self.global_accumulated_ids.extend( batch['id'].tolist() )
+                # Extend the list of accumualted samples
+                self.global_accumulated_ids.extend( batch['id'].tolist() )
 
-            # Log counters.
-            log_event = {
-                'global_step': global_step,
-                'loss': loss.item(),
-                'block': self.current_block,
-                'total_samples_applied': self.total_samples_applied,
-                'local_samples_accumulated': self.local_samples_accumulated,
-                'remote_samples_accumulated': self.remote_samples_accumulated,
-                'global_accumulated_ids': len( self.global_accumulated_ids ),
-                'total_gradient_merges': self.total_gradient_merges,
-                'total_weight_merges': self.total_weight_merges,
-                'total_applied_grads': self.total_applied_grads,
-                'total_graph_synced': self.total_graph_synced,
-                'total_weights_set': self.total_weights_set,
-                'total_grads_shared': self.total_grads_shared,
-                'total_samples_shared': self.total_samples_shared,
-            }
-            self.wandb.log( log_event )
-            bt.logging.info( "\n" + pprint.pformat(log_event) ) 
+                # Log counters.
+                log_event = {
+                    'global_step': global_step,
+                    'loss': loss.item(),
+                    'block': self.current_block,
+                    'total_samples_applied': self.total_samples_applied,
+                    'local_samples_accumulated': self.local_samples_accumulated,
+                    'remote_samples_accumulated': self.remote_samples_accumulated,
+                    'global_accumulated_ids': len( self.global_accumulated_ids ),
+                    'total_gradient_merges': self.total_gradient_merges,
+                    'total_weight_merges': self.total_weight_merges,
+                    'total_applied_grads': self.total_applied_grads,
+                    'total_graph_synced': self.total_graph_synced,
+                    'total_weights_set': self.total_weights_set,
+                    'total_grads_shared': self.total_grads_shared,
+                    'total_samples_shared': self.total_samples_shared,
+                    'epoch': epoch
+                }
+                self.wandb.log( log_event )
+                bt.logging.info( "\n" + pprint.pformat(log_event) ) 
 
-            # Merge gradients every steps_till_gradient_merge steps.
-            if (global_step + 1) % self.config.steps_till_gradient_merge == 0 and not self.config.local:
-                # Picks up to K miners and merges gradients with them.
-                bt.logging.debug(f'Merging gradients.')
-                merge_grads( self )
-                self.total_gradient_merges += 1
+                # Merge gradients every steps_till_gradient_merge steps.
+                if (global_step + 1) % self.config.steps_till_gradient_merge == 0 and not self.config.local:
+                    # Picks up to K miners and merges gradients with them.
+                    bt.logging.debug(f'Merging gradients.')
+                    merge_grads( self )
+                    self.total_gradient_merges += 1
 
-            # Merge weights every steps_till_weights_merge steps.
-            if (global_step + 1) % self.config.steps_till_weights_merge == 0 and not self.config.local:
-                # Picks up to K miners and merges weights with them.
-                bt.logging.debug(f'Merging weights.')
-                merge_weights( self )
-                self.total_weight_merges += 1
+                # Merge weights every steps_till_weights_merge steps.
+                if (global_step + 1) % self.config.steps_till_weights_merge == 0 and not self.config.local:
+                    # Picks up to K miners and merges weights with them.
+                    bt.logging.debug(f'Merging weights.')
+                    merge_weights( self )
+                    self.total_weight_merges += 1
 
-            # If we reached our accumulation level, apply the gradients.
-            if (global_step + 1) % self.config.steps_till_gradient_apply == 0:
-                # Apply accumulated gradients to the model state.
-                bt.logging.debug(f'Applying gradients.')
-                for param in self.model.parameters():
-                    param.grad /= len( self.global_accumulated_ids )
-                self.optimizer.step()
-                assert len( self.global_accumulated_ids ) == self.remote_samples_accumulated + self.local_samples_accumulated
-                self.total_samples_applied += len( self.global_accumulated_ids ) # increment all applied samples.
-                self.total_applied_grads += 1 # Increment total applied grads.
-                self.remote_samples_accumulated = 0 # Zero out remote accumulated samples
-                self.local_samples_accumulated = 0 # Zero out local accumulated samples
-                self.global_accumulated_ids = [] # Zero out accumualted samples.
-                self.hotkeys_seen_this_round = set() # Zero out peers we've seen this round.
+                # If we reached our accumulation level, apply the gradients.
+                if (global_step + 1) % self.config.steps_till_gradient_apply == 0:
+                    # Apply accumulated gradients to the model state.
+                    bt.logging.debug(f'Applying gradients.')
+                    for param in self.model.parameters():
+                        param.grad /= len( self.global_accumulated_ids )
+                    self.optimizer.step()
+                    # assert len( self.global_accumulated_ids ) == self.remote_samples_accumulated + self.local_samples_accumulated
+                    self.total_samples_applied += len( self.global_accumulated_ids ) # increment all applied samples.
+                    self.total_applied_grads += 1 # Increment total applied grads.
+                    self.remote_samples_accumulated = 0 # Zero out remote accumulated samples
+                    self.local_samples_accumulated = 0 # Zero out local accumulated samples
+                    self.global_accumulated_ids = [] # Zero out accumualted samples.
+                    self.hotkeys_seen_this_round = set() # Zero out peers we've seen this round.
 
-            # Sync the graph every blocks_till_resync blocks.
-            if self.current_block % self.config.blocks_till_resync == 0: 
-                # Fetch the current network state (metagraph) from Subtensor.
-                bt.logging.debug(f'Syncing metagraph.')
-                self.metagraph = self.subtensor.metagraph( self.config.netuid )
-                self.total_graph_synced += 1
-                bt.logging.info(f'Currently: {get_online_uids(self)} online uids')
+                # Sync the graph every blocks_till_resync blocks.
+                if self.current_block % self.config.blocks_till_resync == 0: 
+                    # Fetch the current network state (metagraph) from Subtensor.
+                    bt.logging.debug(f'Syncing metagraph.')
+                    self.metagraph = self.subtensor.metagraph( self.config.netuid )
+                    self.total_graph_synced += 1
+                    bt.logging.info(f'Currently: {get_online_uids(self)} online uids')
 
-            # Set weights every blocks_till_set_weights blocks
-            if self.current_block % self.config.blocks_till_set_weights == 0:
-                # Set weights on chain for ping.
-                bt.logging.debug(f'Setting weights.')
-                self.subtensor.set_weights( 
-                    netuid = self.config.netuid, 
-                    wallet = self.wallet, 
-                    uids = [self.my_uid], 
-                    weights = [1.0],
-                    wait_for_inclusion = False,
-                    wait_for_finalization = False,
-                )
-                self.total_weights_set += 1
+                # Set weights every blocks_till_set_weights blocks
+                if self.current_block % self.config.blocks_till_set_weights == 0:
+                    # Set weights on chain for ping.
+                    bt.logging.debug(f'Setting weights.')
+                    self.subtensor.set_weights( 
+                        netuid = self.config.netuid, 
+                        wallet = self.wallet, 
+                        uids = [self.my_uid], 
+                        weights = [1.0],
+                        wait_for_inclusion = False,
+                        wait_for_finalization = False,
+                    )
+                    self.total_weights_set += 1
 
-        except KeyboardInterrupt:
-            self.wandb.finish()
+            except KeyboardInterrupt:
+                self.wandb.finish()
 
-        except Exception as e:
-            bt.logging.error( traceback.format_exc() )
+            except Exception as e:
+                bt.logging.error( traceback.format_exc() )
+                continue
 
 
 
