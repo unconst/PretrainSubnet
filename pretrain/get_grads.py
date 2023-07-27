@@ -66,39 +66,35 @@ def get_grads( self, synapse: GetGrads ) -> GetGrads:
 
 def merge_grads( self ):
 
-    try:
-        available_axons = []
-        # Filter out all uids that we should not merge with.
-        for uid in self.metagraph.uids:
+    available_axons = []
+    # Filter out all uids that we should not merge with.
+    for uid in self.metagraph.uids:
 
-            # Filter dead neurons.
-            if self.current_block - self.metagraph.last_update[ uid ] > 100: 
-                continue
-            
-            # Filter myself
-            elif self.metagraph.hotkeys[ uid ] == self.wallet.hotkey.ss58_address: 
-                continue
+        # Filter dead neurons.
+        if self.current_block - self.metagraph.last_update[ uid ] > 100: 
+            continue
+        
+        # Filter myself
+        elif self.metagraph.hotkeys[ uid ] == self.wallet.hotkey.ss58_address: 
+            continue
 
-            # Filter axons I have merged with this round
-            elif self.metagraph.hotkeys[ uid ] in self.hotkeys_seen_this_round: 
-                continue
+        # Filter axons I have merged with this round
+        elif self.metagraph.hotkeys[ uid ] in self.hotkeys_seen_this_round: 
+            continue
 
-            # otherwise this peer is available to merge with
-            else:
-                available_axons.append( self.metagraph.axons[uid] )
+        # otherwise this peer is available to merge with
+        else:
+            available_axons.append( self.metagraph.axons[uid] )
 
-        # Get axons to merge with.
-        if len(available_axons) == 0: 
-            raise Exception('There are no online uids to average gradients with.')
+    # Get axons to merge with.
+    if len(available_axons) == 0: 
+        bt.logging.debug('No available uid to average gradients with, continuing')
 
-        # Merge gradients.
-        axon_sample = random.choices( available_axons, k = min( self.config.grads_merge_max_k, len( available_axons ) ) )
+    # Merge gradients.
+    axon_sample = random.choices( available_axons, k = min( self.config.grads_merge_max_k, len( available_axons ) ) )
+    if len(axon_sample) > 0:
         _merge_grads( self, axon_sample )
 
-    # On error log invalid step.
-    except Exception as e:
-        bt.logging.error( f'Failed to merge grads with error {e}')
-        self.wandb.log({'successfully_average_gradients': 0.0})
 
 def _merge_grads( self, axons: typing.List[ bt.axon ] ):
     """
@@ -110,7 +106,7 @@ def _merge_grads( self, axons: typing.List[ bt.axon ] ):
 
     # Use the dendrite's query function to retrieve the gradients for the online axons
     # If the query function only returns one dictionary, wrap it in a list for the later iteration
-    bt.logging.info(f'Querying: {axons}')
+    bt.logging.info(f'Grad Querying: {axons}')
     responses = self.dendrite.query( axons, GetGrads() )
     if not isinstance(responses, list): responses = [responses]
 
@@ -120,7 +116,9 @@ def _merge_grads( self, axons: typing.List[ bt.axon ] ):
     # Filter out invalid grads.
     # Check that there are valid gradient dicts to average.
     valid_resps = [ resp for resp in responses if resp is not None and hasattr(resp, 'grads') and hasattr(resp, 'samples') and is_valid_grad_dict( self, resp.grads ) ]
-    if len(valid_resps) == 0: raise Exception('There are no valid gradient dicts.')
+    if len(valid_resps) == 0: 
+        bt.logging.debug('There were no valid grad dicts to average with')
+        return
     self.wandb.log( {'n_valid_grad_dicts': len(valid_resps)} )
 
     # Extend the number of samples accumulates

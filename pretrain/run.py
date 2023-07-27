@@ -17,6 +17,7 @@
 
 import torch
 import sys
+import pprint
 import traceback
 import bittensor as bt
 from .misc import get_online_uids
@@ -59,7 +60,7 @@ def init_run_state( self ):
     # Re-fetch the current network state (metagraph) from Subtensor.
     self.metagraph = self.subtensor.metagraph(self.config.netuid)
     bt.logging.info( 'Re-synced Metagraph.')
-    bt.logging.info(f'Currently: {get_online_uids(self)} uids')
+    bt.logging.info(f'Currently: {get_online_uids(self)} online uids')
 
     # Set the model to training mode.
     self.model.train()
@@ -155,7 +156,7 @@ def run( self ):
                 'total_samples_shared': self.total_samples_shared,
             }
             self.wandb.log( log_event )
-            bt.logging.info( log_event ) 
+            bt.logging.info( "\n" + pprint.pformat(log_event) ) 
 
             # Merge gradients every steps_till_gradient_merge steps.
             if (global_step + 1) % self.config.steps_till_gradient_merge == 0:
@@ -192,6 +193,7 @@ def run( self ):
                 bt.logging.debug(f'Syncing metagraph.')
                 self.metagraph = self.subtensor.metagraph( self.config.netuid )
                 self.total_graph_synced += 1
+                bt.logging.info(f'Currently: {get_online_uids(self)} online uids')
 
             # Set weights every blocks_till_set_weights blocks
             if self.current_block % self.config.blocks_till_set_weights == 0:
