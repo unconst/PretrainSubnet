@@ -19,8 +19,8 @@ def parse_arguments():
     parser.add_argument( '--lr', type=float, default = 5e-5, help='Training learning rate.')
     parser.add_argument( '--bs', type=int, default = 1, help='Training batch size')
     parser.add_argument( '--sl', type=int, default = 512, help='Training sequence length')
-    parser.add_argument( '--n_heads', type=int, default = 12, help='Model number of heads')
-    parser.add_argument( '--n_layer', type=int, default = 12, help='Number of model layers')
+    parser.add_argument( '--n_head', type=int, default = 12, help='Model number of attention heads')
+    parser.add_argument( '--n_layer', type=int, default = 12, help='Number of gpt2 model layers')
     parser.add_argument( '--local', action="store_true", default = False, help='Turn on local training.')
     parser.add_argument( '--wandb', action="store_true", default = False, help='Turn on wandb')
     parser.add_argument( '--max_k', type=int, default = 1, help='Max number of gradients to merge.')
@@ -46,7 +46,7 @@ def setup_model_and_tokenizer():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
     tokenizer.pad_token = tokenizer.eos_token
-    model = GPT2LMHeadModel(GPT2Config()).to(device)
+    model = GPT2LMHeadModel(GPT2Config(n_layer = config.n_layer, n_head = config.n_head)).to(device)
     model.train()
     return model, tokenizer, device
 
