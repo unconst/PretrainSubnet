@@ -19,6 +19,9 @@ def parse_arguments():
     parser.add_argument( '--lr', type=float, default = 5e-5, help='Training learning rate.')
     parser.add_argument( '--bs', type=int, default = 1, help='Training batch size')
     parser.add_argument( '--sl', type=int, default = 512, help='Training sequence length')
+    parser.add_argument( '--n_heads', type=int, default = 12, help='Model number of heads')
+    parser.add_argument( '--n_layer', type=int, default = 12, help='Number of model layers')
+    parser.add_argument( '--local', action="store_true", default = False, help='Turn on local training.')
     parser.add_argument( '--wandb', action="store_true", default = False, help='Turn on wandb')
     parser.add_argument( '--max_k', type=int, default = 1, help='Max number of gradients to merge.')
     parser.add_argument( '--max_steps', type=int, default = 50000, help='Max training steps.')
@@ -41,7 +44,6 @@ pass
 # Setup model and tokenizer
 def setup_model_and_tokenizer():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    from transformers import GPT2LMHeadModel, GPT2Config, GPT2Tokenizer, AdamW, get_linear_schedule_with_warmup
     tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
     tokenizer.pad_token = tokenizer.eos_token
     model = GPT2LMHeadModel(GPT2Config()).to(device)
@@ -97,7 +99,9 @@ def chain_sync():
     if subtensor.block - metagraph.last_update[ my_uid ] > 50:
         subtensor.set_weights( netuid = config.netuid, wallet = wallet, uids = [my_uid], weights = [1.0] )
     metagraph = subtensor.metagraph( config.netuid )
-chain_sync()
+
+if not config.local:
+    chain_sync()
 
 # Set up synapse.
 def get_grads( synapse: utils.GetGrads ) -> utils.GetGrads:
@@ -138,8 +142,9 @@ for epoch in range(3):
         loss = outputs.loss / config.accs_per_step
         loss.backward()
 
-        # Merge gradients with a random peer.
-        merge_random()
+        if not config.local:
+            # Merge gradients with a random peer.
+            merge_random()
         
         # Accumulate across batches.
         accumulation_counter += 1
@@ -158,7 +163,7 @@ for epoch in range(3):
                 if config.wandb: wandb.log( {'step': step, 'loss': loss, 'perplexity': perplexity } )
 
             # Sync chain state.
-            if step % config.steps_per_sync == 0:
+            if step % config.steps_per_sync == 0 and not config.local:
                 chain_sync()
 
             # Increment step.
