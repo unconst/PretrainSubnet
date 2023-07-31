@@ -38,6 +38,7 @@ def parse_arguments():
     return bt.config( parser )
 
 config = parse_arguments()
+print (config)
 pass
 
 
@@ -88,29 +89,36 @@ wallet = bt.wallet( config = config ).create_if_non_existent()
 subtensor = bt.subtensor( chain_endpoint = config.chain_endpoint  )
 dendrite = bt.dendrite( wallet = wallet )
 axon = bt.axon( wallet = wallet, config = config )
-metagraph = subtensor.metagraph( config.netuid )
+
+# Register our wallet, serve our axon, get our uid.
+if not config.local:
+    subtensor.register( wallet = wallet, netuid = config.netuid )
+    axon.serve( netuid = config.netuid, subtensor = subtensor )
+    metagraph = subtensor.metagraph( config.netuid )    
+    my_uid = metagraph.hotkeys.index( wallet.hotkey.ss58_address )
 
 # Set up chain connection.
 def chain_sync():
-    subtensor.register( wallet = wallet, netuid = config.netuid )
-    metagraph = subtensor.metagraph( config.netuid )
-    my_uid = metagraph.hotkeys.index( wallet.hotkey.ss58_address )
-    axon.serve( netuid = config.netuid, subtensor = subtensor )
-    if subtensor.block - metagraph.last_update[ my_uid ] > 50:
+    global metagraph
+    global subtensor
+    if subtensor.block - metagraph.block > 50:
+        metagraph = subtensor.metagraph( config.netuid )
         subtensor.set_weights( netuid = config.netuid, wallet = wallet, uids = [my_uid], weights = [1.0] )
-    metagraph = subtensor.metagraph( config.netuid )
-
 if not config.local:
     chain_sync()
 
 # Set up synapse.
 def get_grads( synapse: utils.GetGrads ) -> utils.GetGrads:
-    synapse.grads = { name: bt.tensor(parameter.grad.clone()) for name, parameter in model.named_parameters() if parameter.grad is not None }
+    global model
+    synapse.serialize( model = model )
     return synapse
 axon.attach( get_grads ).start()
 
 # Set up dendrite get grads.
 def merge_random():
+    global metagraph
+    global dendrite
+    global subtensor
     # Query random available axon.
     available = [ metagraph.axons[uid] for uid in metagraph.uids if subtensor.block - metagraph.last_update[uid] < 100 ]
     axon = random.choice( available )
