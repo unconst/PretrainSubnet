@@ -53,6 +53,7 @@ class GetGrads( bt.Synapse ):
             for name, compressed_grad in self.compressed_grads.items():
                 compressed_size = self.compressed_sizes[name]
                 grads[name] = compressor.decompress( sign_xi_array = compressed_grad.tensor(), norm = compressed_size.tensor() )
+            return grads
         except Exception as e:
             bt.logging.error(f'Failed to decompress gradients with error: {e}')
             return None
