@@ -47,12 +47,15 @@ class GetGrads( bt.Synapse ):
         """
         # Decompress the gradients.
         grads = {}
-        for name, compressed_grad in self.compressed_grads.items():
-            compressed_size = self.compressed_sizes[name]
-            grads[name] = compressor.decompress( sign_xi_array = compressed_grad.tensor(), norm = compressed_size.tensor() )
-
-        # Return the gradients.
-        return grads
+        if compressed_grads is None:
+            return grads
+        try:
+            for name, compressed_grad in self.compressed_grads.items():
+                compressed_size = self.compressed_sizes[name]
+                grads[name] = compressor.decompress( sign_xi_array = compressed_grad.tensor(), norm = compressed_size.tensor() )
+        except Exception as e:
+            bt.logging.error(f'Failed to decompress gradients with error: {e}')
+            return None
     
     def serialize( self, model: torch.nn.Module ):
         """
