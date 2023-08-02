@@ -47,7 +47,7 @@ class GetGrads( bt.Synapse ):
         """
         # Decompress the gradients.
         grads = {}
-        if compressed_grads is None:
+        if self.compressed_grads is None:
             return grads
         try:
             for name, compressed_grad in self.compressed_grads.items():
