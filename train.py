@@ -25,7 +25,7 @@ def parse_arguments():
     parser.add_argument( '--n_layer', type=int, default = 12, help = 'Number of gpt2 model layers')
     parser.add_argument( '--local', action="store_true", default = False, help = 'Turn on local training.')
     parser.add_argument( '--wandb', action="store_true", default = False, help = 'Turn on wandb')
-    parser.add_argument( '--no_self_query', dest = 'self_query', action="store_false", default = False, help = 'Turn off querying yourself.')
+    parser.add_argument( '--self_query', action="store_true", default = False, help = 'Query only yourself.')
     parser.add_argument( '--max_k', type=int, default = 1, help = 'Max number of gradients to merge.')
     parser.add_argument( '--max_steps', type=int, default = 50000, help = 'Max training steps.')
     parser.add_argument( '--steps_per_log', type=int, default = 1, help = 'Number of steps per log.')
@@ -97,6 +97,7 @@ wallet = bt.wallet( config = config ).create_if_non_existent()
 subtensor = bt.subtensor( chain_endpoint = config.chain_endpoint  )
 dendrite = bt.dendrite( wallet = wallet )
 axon = bt.axon( wallet = wallet, config = config )
+metagraph = subtensor.metagraph( config.netuid )
 
 # Register our wallet, serve our axon, get our uid.
 if not config.local:
@@ -135,17 +136,17 @@ async def run_gradient_merging():
         global metagraph
         global dendrite
         global subtensor
-        # Query random available axon.
-        available = [ metagraph.axons[uid] for uid in metagraph.uids if subtensor.block - metagraph.last_update[uid] < 1000 ]
 
         # Check if we should query self.
-        if config.self_query: available.append( metagraph.axons[my_uid] )
+        if config.self_query: 
+            available = [ metagraph.axons[my_uid] ]
+        else:
+            available = [ metagraph.axons[uid] for uid in metagraph.uids if subtensor.block - metagraph.last_update[uid] < 1000 ]
 
         # Check no available.
         if len( available ) == 0: bt.logging.debug( f"No available axons to query." ); return
 
         axon = random.choice( available )
-        bt.logging.debug( f"Merging gradients with axon {axon}" )
 
         # Query axon and get grads.
         grad_dict = await dendrite( axon, utils.GetGrads() )
@@ -165,11 +166,17 @@ def start_async_loop(loop):
     asyncio.set_event_loop(loop)
     loop.run_until_complete(run_gradient_merging())
 
+# Start background gradient merging.
+running = False
 def run_merge():
-    new_loop = asyncio.new_event_loop()
-    t = threading.Thread(target=start_async_loop, args=(new_loop,))
-    t.start()
+    if not running:
+        new_loop = asyncio.new_event_loop()
+        t = threading.Thread(target=start_async_loop, args=(new_loop,))
+        t.daemon = True
+        t.start()
 
+
+# Start merge
 run_merge()
 
 # training loop
@@ -178,7 +185,6 @@ accumulation_counter = 0
 for epoch in range(3):
     bt.logging.info( f'Epoch {epoch + 1}/{3}' )
     for batch in dataloader:
-        
         # Forward pass.
         outputs = model(
             input_ids = batch["input_ids"].to(device), 
