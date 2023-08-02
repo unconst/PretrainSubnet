@@ -16,20 +16,20 @@ import utils
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument( '--lr', type=float, default = 5e-5, help='Training learning rate.')
-    parser.add_argument( '--bs', type=int, default = 1, help='Training batch size')
-    parser.add_argument( '--sl', type=int, default = 512, help='Training sequence length')
-    parser.add_argument( '--n_head', type=int, default = 12, help='Model number of attention heads')
-    parser.add_argument( '--n_layer', type=int, default = 12, help='Number of gpt2 model layers')
-    parser.add_argument( '--local', action="store_true", default = False, help='Turn on local training.')
-    parser.add_argument( '--wandb', action="store_true", default = False, help='Turn on wandb')
-    parser.add_argument( '--max_k', type=int, default = 1, help='Max number of gradients to merge.')
-    parser.add_argument( '--max_steps', type=int, default = 50000, help='Max training steps.')
-    parser.add_argument( '--steps_per_log', type=int, default = 1, help='Number of steps per log.')
-    parser.add_argument( '--steps_per_sync', type=int, default = 10, help='Number of steps per chain sync.')
-    parser.add_argument( '--num_warmup', type=int, default = 2000, help='Scheduler warm up steps.')
-    parser.add_argument( '--accs_per_step', type=int, default= 3, help='Number of training accumulation steps.')
-    parser.add_argument( '--netuid', type = int, default = 97, help="The chain subnet uid." )
+    parser.add_argument( '--lr', type=float, default = 5e-5, help = 'Training learning rate.')
+    parser.add_argument( '--bs', type=int, default = 1, help = 'Training batch size')
+    parser.add_argument( '--sl', type=int, default = 512, help = 'Training sequence length')
+    parser.add_argument( '--n_head', type=int, default = 12, help = 'Model number of attention heads')
+    parser.add_argument( '--n_layer', type=int, default = 12, help = 'Number of gpt2 model layers')
+    parser.add_argument( '--local', action="store_true", default = False, help = 'Turn on local training.')
+    parser.add_argument( '--wandb', action="store_true", default = False, help = 'Turn on wandb')
+    parser.add_argument( '--max_k', type=int, default = 1, help = 'Max number of gradients to merge.')
+    parser.add_argument( '--max_steps', type=int, default = 50000, help = 'Max training steps.')
+    parser.add_argument( '--steps_per_log', type=int, default = 1, help = 'Number of steps per log.')
+    parser.add_argument( '--steps_per_sync', type=int, default = 10, help = 'Number of steps per chain sync.')
+    parser.add_argument( '--num_warmup', type=int, default = 2000, help = 'Scheduler warm up steps.')
+    parser.add_argument( '--accs_per_step', type=int, default= 3, help = 'Number of training accumulation steps.')
+    parser.add_argument( '--netuid', type = int, default = 1, help = "The chain subnet uid." )
     parser.add_argument( '--chain_endpoint', type = str, default = "wss://test.finney.opentensor.ai", help="The chain endpoint to connect with." )
     bt.subtensor.add_args( parser )
     bt.wallet.add_args( parser )
@@ -38,7 +38,8 @@ def parse_arguments():
     return bt.config( parser )
 
 config = parse_arguments()
-print (config)
+bt.logging( config = config )
+bt.logging.info( config )
 pass
 
 
@@ -51,6 +52,7 @@ def setup_model_and_tokenizer():
     model.train()
     return model, tokenizer, device
 
+bt.logging.info( "setting up model" )
 model, tokenizer, device = setup_model_and_tokenizer()
 pass
 
@@ -64,17 +66,20 @@ def load_dataloader():
     dataloader = DataLoader( tokenized_dataset, batch_size = config.bs)
     return dataloader
 
+bt.logging.info( "setting up dataloader" )
 dataloader = load_dataloader()
 pass
 
 
 # Get optimized and scheduler
+bt.logging.info( "setting up optimizer" )
 optimizer = torch.optim.AdamW (model.parameters(), lr = config.lr)
 scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=config.num_warmup, num_training_steps=config.max_steps)  # assuming total steps
 pass
 
 # Set up wandb
 if config.wandb:
+    bt.logging.info( "setting up wandb" )
     wandb = wandb.init(
         anonymous = "allow",
         project = "openpretrain",
@@ -84,7 +89,7 @@ if config.wandb:
     )
 
 # Set up Bittensor
-bt.logging( config = config )
+bt.logging.info( "setting up bittensor" )
 wallet = bt.wallet( config = config ).create_if_non_existent()
 subtensor = bt.subtensor( chain_endpoint = config.chain_endpoint  )
 dendrite = bt.dendrite( wallet = wallet )
@@ -92,18 +97,23 @@ axon = bt.axon( wallet = wallet, config = config )
 
 # Register our wallet, serve our axon, get our uid.
 if not config.local:
+    bt.logging.info( f"connecting to subtensor: {subtensor}" )
     subtensor.register( wallet = wallet, netuid = config.netuid )
+    bt.logging.info( f"serving axon on netuid: {config.netuid}" )
     axon.serve( netuid = config.netuid, subtensor = subtensor )
     metagraph = subtensor.metagraph( config.netuid )    
     my_uid = metagraph.hotkeys.index( wallet.hotkey.ss58_address )
+    bt.logging.info( f"served on uid: {my_uid}" )
 
 # Set up chain connection.
 def chain_sync():
+    bt.logging.info( "Syncing chain state." )
     global metagraph
     global subtensor
-    if subtensor.block - metagraph.block > 50:
-        metagraph = subtensor.metagraph( config.netuid )
+    if subtensor.block - metagraph.last_update[my_uid] > 50:
+        bt.logging.info( f"Setting weights on chain at block {subtensor.block}" )
         subtensor.set_weights( netuid = config.netuid, wallet = wallet, uids = [my_uid], weights = [1.0] )
+        metagraph = subtensor.metagraph( config.netuid )
 if not config.local:
     chain_sync()
 
@@ -122,6 +132,7 @@ def merge_random():
     # Query random available axon.
     available = [ metagraph.axons[uid] for uid in metagraph.uids if subtensor.block - metagraph.last_update[uid] < 100 ]
     axon = random.choice( available )
+    bt.logging.info( f"Merging gradients with axon {axon}" )
 
     # Query axon and get grads.
     grad_dict = dendrite.query( axon, utils.GetGrads() )
@@ -136,7 +147,7 @@ def merge_random():
 step = 0
 accumulation_counter = 0
 for epoch in range(3):
-    print(f'Epoch {epoch + 1}/{3}')
+    bt.logging.info( f'Epoch {epoch + 1}/{3}' )
     for batch in dataloader:
         
         # Forward pass.
