@@ -182,7 +182,7 @@ for epoch in range(3):
             # Increment step.
             step += 1
 
-        if step % config.steps_per_reduce == 0 and not config.local:
-            # Reduce gradients
-            reduce.reduce( model, dendrite, metagraph )
+            if step % config.steps_per_reduce == 0 and not config.local:
+                # Reduce gradients
+                reduce.reduce( model, dendrite, metagraph )
 

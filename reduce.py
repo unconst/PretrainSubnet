@@ -62,7 +62,7 @@ def reduce(model, dendrite, metagraph):
         None
     """
     # Query all axons in the network.
-    pings = dendrite.query(metagraph.axons)
+    pings = dendrite.query( metagraph.axons, timeout = 2 )
 
     # Filter out online axons.
     online = [axon for ping, axon in zip(pings, metagraph.axons) if ping.is_success]
