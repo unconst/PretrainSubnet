@@ -87,7 +87,7 @@ def reduce(model, dendrite, metagraph, replace:bool = False):
     # Reduce with the selected axon.
     reduce_with_axon(model, dendrite, to_query, replace=replace)
 
-def reduce_with_axon(model, dendrite, axon):
+def reduce_with_axon(model, dendrite, axon, replace:bool = False):
     """
     Function to fetch the parameters of a selected axon, validate them,
     and if valid, average the model's parameters with the fetched parameters.
@@ -99,6 +99,7 @@ def reduce_with_axon(model, dendrite, axon):
         model (torch.nn.Module): The PyTorch model whose parameters are to be updated.
         dendrite (bittensor.Dendrite): The dendrite through which the model connects to the network.
         axon (bittensor.Axon): The selected axon whose parameters are to be fetched.
+        replace (bool): Whether to replace the model's parameters with the averaged parameters. If False, the averaged parameters are stored in the model's buffer.
 
     Returns:
         None
