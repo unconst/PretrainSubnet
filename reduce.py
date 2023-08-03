@@ -130,6 +130,8 @@ def reduce_with_axon(model, dendrite, axon, replace:bool = False) -> bool:
             else:
                 element = state_dict[name].to(model.device)
                 param.data = (param.data + element.data) / 2
+        else:
+            bt.logging.warning(f"Parameter {name} not found in state_dict.")
 
     # Log that the parameter averaging is complete.
     bt.logging.info("All reduce successful.")
