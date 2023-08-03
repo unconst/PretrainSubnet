@@ -25,6 +25,76 @@ import compressors
 # GRank compressor.
 compressor = compressors.QSGDWECModCompressor('cpu', quantization_level = 4)
 
+
+# Protocol Definition to get Gradients
+class GetWeights( bt.Synapse ):
+    # Compressed gradients per variable in the model.
+    compressed_weights: typing.Optional[typing.Dict[str, bt.Tensor]] = None
+
+    # Sizes of compressed gradients per variable in the model.
+    compressed_sizes: typing.Optional[typing.Dict[str, bt.Tensor]] = None
+
+    # Define deserialization function
+    def deserialize( self ) -> typing.Dict[str, torch.Tensor]:
+        """
+        Deserialize method converts the Bittensor gradients to Pytorch tensors.
+
+        Returns:
+        Dictionary with gradient tensors.
+        """
+        # Decompress the gradients.
+        weights = {}
+        if self.compressed_weights is None:
+            return weights
+        try:
+            for name, compressed_weight in self.compressed_weights.items():
+                compressed_size = self.compressed_sizes[name]
+                weights[name] = compressor.decompress( sign_xi_array = compressed_weight.tensor(), norm = compressed_size.tensor() )
+            return weights
+        except Exception as e:
+            bt.logging.error(f'Failed to decompress weights with error: {e}')
+            return None
+    
+    def serialize( self, model: torch.nn.Module ):
+        """
+        Serialize method converts the Pytorch model's gradients to Bittensor tensors.
+       
+        """
+        self.compressed_weights = {}
+        self.compressed_sizes = {}
+        for name, weight in self.model.state_dict().items()
+            norm, sign_xi_array = compressor.compress( weight.clone().detach().cpu()  )
+            self.compressed_weights[name] = bt.tensor( tensor = sign_xi_array )
+            self.compressed_sizes[name] = bt.tensor( tensor = norm )
+
+
+def average_with_state_dicts( model, state_dicts: typing.List[typing.Dict[str, torch.Tensor]]) -> typing.Dict[str, torch.Tensor]:
+    # Create a new state dictionary for the averaged weights.
+    avg_state_dict = {}
+
+    for key in model.state_dict().keys():
+        # Initialize accumulation variables.
+        avg_weight = model.state_dict()[key].clone().to(model.device)
+        num_weights = 1 # my wieghts.
+
+        # Accumulate weights and their count.
+        for state_dict in state_dicts:
+            if key in state_dict:
+                total_weights += state_dict[key].to(model.device)
+                num_weights += 1
+
+        # Compute the average of the weights.
+        avg_weight = total_weights / num_weights
+
+        # Assign the average weight to the new state dictionary.
+        avg_state_dict[key] = avg_weight.to(model.device)
+
+        del avg_weight
+        del num_weights
+    
+    # Apply average to model.
+    model.load_state_dict(average_state_dict)
+
 # Protocol Definition to get Gradients
 class GetGrads( bt.Synapse ):
     """
@@ -135,6 +205,65 @@ def average_grad_dicts( model: torch.nn.Module, grad_dicts: typing.List[typing.D
         del grad_sum
 
     return avg_valid_grads_dict
+
+
+
+def is_valid_state_dict(self, state_dict) -> bool:
+    """
+    This function checks whether a given state_dict is valid for a PyTorch model.
+    The state_dict is valid if:
+        - it is a dictionary and not empty
+        - all keys in the state_dict match the keys in the model's state_dict
+        - all values in the state_dict are float tensors
+        - all elements of the tensors are finite
+        - the shapes of tensors in the state_dict match with corresponding tensors in the model's state_dict
+
+    Parameters:
+        state_dict (dict): The state dictionary to validate. This dict typically contains
+            mappings from layer names to corresponding parameters.
+
+    Returns:
+        bool: True if the state_dict is valid, False otherwise.
+    """
+    # Check if the state_dict is a non-empty dictionary
+    if state_dict is None or not isinstance(state_dict, dict) or len(state_dict.keys()) == 0:
+        bt.logging.warning(f'Invalid state_dict: Is None, empty or not a dict: {state_dict}')
+        return False
+
+    # Iterate over all keys in the state_dict
+    for key in state_dict.keys():
+
+        # If the key is not in the model's state_dict, the input state_dict is not valid
+        if key not in self.model.state_dict().keys():
+            bt.logging.warning(f'Invalid state_dict: Keys do not match the model: {key}')
+            return False
+
+        # If the corresponding value is None, the input state_dict is not valid
+        if state_dict[key] is None:
+            bt.logging.warning(f'Invalid state_dict: Weight is none: {state_dict[key]}')
+            return False
+
+        # If the value is not a float tensor, the input state_dict is not valid
+        if not isinstance(state_dict[key], (torch.FloatTensor, torch.cuda.FloatTensor)):
+            bt.logging.warning(f'Invalid state_dict: Weight is not float tensor: {state_dict[key]}')
+            return False
+
+        # If any elements of the tensor are not finite, the input state_dict is not valid
+        if not torch.all(torch.isfinite(state_dict[key])):
+            bt.logging.warning(f'Invalid state_dict: Weight is not finite: {state_dict[key]}')
+            return False
+
+        # Ensure device is correct.
+        state_dict[key].to(self.device)
+
+        # If the shape of the tensor does not match the corresponding tensor in the model, 
+        # the input state_dict is not valid
+        if state_dict[key].shape != self.model.state_dict()[key].shape:
+            bt.logging.warning(f"Invalid state_dict: Weight dimensions do not match the model: {state_dict[key].shape}")
+            return False
+
+    # If none of the above conditions are met, the state_dict is valid
+    return True
 
 
 def is_valid_grad_dict( model: torch.nn.Module, grad_dict ) -> bool:

@@ -13,8 +13,8 @@ from datasets import load_dataset
 from torch.utils.data import DataLoader
 from transformers import GPT2LMHeadModel, GPT2Config, GPT2Tokenizer, AdamW, get_linear_schedule_with_warmup
 
-# Pull in training utils.
-import utils
+# Pull in training reduce.
+import reduce
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
@@ -25,6 +25,7 @@ def parse_arguments():
     parser.add_argument( '--n_layer', type=int, default = 12, help = 'Number of gpt2 model layers')
     parser.add_argument( '--local', action="store_true", default = False, help = 'Turn on local training.')
     parser.add_argument( '--wandb', action="store_true", default = False, help = 'Turn on wandb')
+    parser.add_argument( '--mock', action="store_true", default = False, help = 'Turn on mocking.')
     parser.add_argument( '--self_query', action="store_true", default = False, help = 'Query only yourself.')
     parser.add_argument( '--max_k', type=int, default = 1, help = 'Max number of gradients to merge.')
     parser.add_argument( '--max_steps', type=int, default = 50000, help = 'Max training steps.')
@@ -48,11 +49,18 @@ pass
 
 # Setup model and tokenizer
 def setup_model_and_tokenizer():
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
-    tokenizer.pad_token = tokenizer.eos_token
-    model = GPT2LMHeadModel(GPT2Config(n_layer = config.n_layer, n_head = config.n_head)).to(device)
-    model.train()
+    if not config.mock:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
+        tokenizer.pad_token = tokenizer.eos_token
+        model = GPT2LMHeadModel(GPT2Config(n_layer = config.n_layer, n_head = config.n_head)).to(device)
+        model.train()
+    else:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
+        tokenizer.pad_token = tokenizer.eos_token
+        model = GPT2LMHeadModel(GPT2Config(n_layer = 1, n_head = 1)).to(device)
+        model.train()
     return model, tokenizer, device
 
 bt.logging.info( "setting up model" )
@@ -63,10 +71,15 @@ pass
 def load_dataloader():
     def tokenize_function(examples):
         return tokenizer(examples["text"], truncation = True, padding = "max_length", max_length = config.sl, return_tensors = "pt")
-    dataset = load_dataset("togethercomputer/RedPajama-Data-1T", 'default', split='train', streaming=True)
-    dataset = dataset.shuffle(buffer_size = config.bs * 4, seed=42)
-    tokenized_dataset = dataset.map( tokenize_function, batched=True )
-    dataloader = DataLoader( tokenized_dataset, batch_size = config.bs)
+    if not config.mock:
+        dataset = load_dataset("togethercomputer/RedPajama-Data-1T", 'default', split='train', streaming=True)
+        dataset = dataset.shuffle(buffer_size = config.bs * 4, seed=42)
+        tokenized_dataset = dataset.map( tokenize_function, batched=True )
+        dataloader = DataLoader( tokenized_dataset, batch_size = config.bs)
+    else:
+        texts = ["mock sentence "+str(i) for i in range(100)]  # creating 100 mock sentences
+        encoded_texts = [tokenize_function({"text": txt}) for txt in texts]
+        dataloader = DataLoader(encoded_texts, batch_size = config.bs)
     return dataloader
 
 bt.logging.info( "setting up dataloader" )
@@ -101,13 +114,13 @@ metagraph = subtensor.metagraph( config.netuid )
 
 # Register our wallet, serve our axon, get our uid.
 if not config.local:
-    bt.logging.info( f"connecting to subtensor: {subtensor}" )
+    bt.logging.info( f"registering on netuid: {config.netuid}" )
     subtensor.register( wallet = wallet, netuid = config.netuid )
     bt.logging.info( f"serving axon on netuid: {config.netuid}" )
     axon.serve( netuid = config.netuid, subtensor = subtensor )
     metagraph = subtensor.metagraph( config.netuid )    
     my_uid = metagraph.hotkeys.index( wallet.hotkey.ss58_address )
-    bt.logging.info( f"served on uid: {my_uid}" )
+    bt.logging.info( f"registered and served with uid: {my_uid}" )
 
 # Set up chain connection.
 def chain_sync():
@@ -122,62 +135,11 @@ if not config.local:
     chain_sync()
 
 # Set up synapse.
-def get_grads( synapse: utils.GetGrads ) -> utils.GetGrads:
+def get_params( synapse: reduce.GetParams ) -> reduce.GetParams:
     global model
     synapse.serialize( model = model )
     return synapse
-axon.attach( get_grads ).start()
-
-# Set up dendrite get grads.
-async def run_gradient_merging():
-
-    # Function which merges gradients with one random axon.
-    async def merge_random():
-        global metagraph
-        global dendrite
-        global subtensor
-
-        # Check if we should query self.
-        if config.self_query: 
-            available = [ metagraph.axons[my_uid] ]
-        else:
-            available = [ metagraph.axons[uid] for uid in metagraph.uids if subtensor.block - metagraph.last_update[uid] < 1000 ]
-
-        # Check no available.
-        if len( available ) == 0: bt.logging.debug( f"No available axons to query." ); return
-
-        axon = random.choice( available )
-
-        # Query axon and get grads.
-        grad_dict = await dendrite( axon, utils.GetGrads() )
-
-        # Check if it is valid.
-        if utils.is_valid_grad_dict( model, grad_dict ):
-
-            # Apply grad to model.
-            utils.apply_grads_to_model( model, grad_dict )
-            bt.logging.debug(f'merged gradients with axon: {axon}')
-
-    while True:
-        await merge_random()
-        await asyncio.sleep( 1 )
-
-def start_async_loop(loop):
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(run_gradient_merging())
-
-# Start background gradient merging.
-running = False
-def run_merge():
-    if not running:
-        new_loop = asyncio.new_event_loop()
-        t = threading.Thread(target=start_async_loop, args=(new_loop,))
-        t.daemon = True
-        t.start()
-
-
-# Start merge
-run_merge()
+axon.attach( get_params ).start()
 
 # training loop
 step = 0
@@ -218,3 +180,7 @@ for epoch in range(3):
 
             # Increment step.
             step += 1
+
+            # Reduce gradients
+            reduce.reduce( model, dendrite, metagraph )
+
