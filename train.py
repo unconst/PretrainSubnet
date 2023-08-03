@@ -74,7 +74,7 @@ def load_dataloader():
         return tokenizer(examples["text"], truncation = True, padding = "max_length", max_length = config.sl, return_tensors = "pt")
     if not config.mock:
         dataset = load_dataset("togethercomputer/RedPajama-Data-1T", 'default', split='train', streaming=True)
-        dataset = dataset.shuffle(buffer_size = config.bs * 4, seed=42)
+        dataset = dataset.shuffle(buffer_size = config.bs * 4, seed = random.randint(0, 1000))
         tokenized_dataset = dataset.map( tokenize_function, batched=True )
         dataloader = DataLoader( tokenized_dataset, batch_size = config.bs)
     else:
@@ -204,5 +204,7 @@ for epoch in range(3):
         
         except KeyboardInterrupt:
             bt.logging.info("Keyboard interrupt detected. Saving model and exiting.")
+            if config.wandb:
+                wandb.finish()
             exit()
 
