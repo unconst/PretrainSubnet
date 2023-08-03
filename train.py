@@ -151,8 +151,8 @@ if not config.local and not config.no_initial_sync:
             chain_sync()
             continue
 
-    # Record the last sync block.
-    last_sync_block = subtensor.block
+# Record the last sync block.
+last_sync_block = subtensor.block
 
 # Set up synapse.
 def get_params( synapse: reduce.GetParams ) -> reduce.GetParams:
