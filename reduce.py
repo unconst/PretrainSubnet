@@ -132,12 +132,12 @@ def reduce_with_axon(model, dendrite, axon, replace:bool = False) -> bool:
                 original_param_data = param.data.clone()  # Clone the original data for comparison
 
                 if replace:
-                    param.data = element.data
+                    model.state_dict()[name].data = element.data
                 else:
-                    param.data = (param.data + element.data) / 2
+                    model.state_dict()[name].data = (param.data + element.data) / 2
 
                 # Compute and log the Euclidean distance
-                distance = compute_euclidean_distance(original_param_data, param.data)
+                distance = compute_euclidean_distance(original_param_data, model.state_dict()[name].data)
                 bt.logging.trace(f"For layer {name}, the Euclidean distance between the original "
                     f"and new parameters is {distance}")
             else:
