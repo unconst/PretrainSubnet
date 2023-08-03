@@ -74,7 +74,7 @@ def reduce(model, dendrite, metagraph, replace:bool = False) -> bool:
     pings = dendrite.query( metagraph.axons, timeout = 2 )
 
     # Filter out online axons.
-    online = [axon for ping, axon in zip(pings, metagraph.axons) if ping.is_success]
+    online = [axon for ping, axon in zip(pings, metagraph.axons) if ping.is_success and ping.axon.hotkey != ping.dendrite.hotkey ]
     if not online:
         bt.logging.warning("No online uids to all reduce with.")
         return False
