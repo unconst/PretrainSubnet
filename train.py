@@ -154,7 +154,8 @@ if not config.local:
     is_first = True
     while True:
         # Reduce model weights with random.
-        if reduce.reduce( model, dendrite, metagraph, replace = True, allow_self = not is_first ): 
+        success, model = reduce.reduce( model, dendrite, metagraph, replace = True, allow_self = not is_first ): 
+        if success:
             break
         else: 
             is_first = False
@@ -220,7 +221,7 @@ for epoch in range(3):
 
                 if step % config.steps_per_reduce == 0 and not config.local:
                     # Perform the reduction
-                    reduce.reduce(model, dendrite, metagraph)
+                    success, model = reduce.reduce(model, dendrite, metagraph)
 
 
         except RuntimeError as e:
