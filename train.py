@@ -136,14 +136,7 @@ def chain_sync():
 if not config.local:
     chain_sync()
 
-# Set up synapse.
-def get_params( synapse: reduce.GetParams ) -> reduce.GetParams:
-    global model
-    synapse.serialize( model = model )
-    return synapse
-axon.attach( get_params ).start()
-
-
+# Pull latest weights.
 if not config.local:
     is_first = True
     while True:
@@ -156,6 +149,13 @@ if not config.local:
             # Sync chain state and try again.
             chain_sync()
             continue
+
+# Set up synapse.
+def get_params( synapse: reduce.GetParams ) -> reduce.GetParams:
+    global model
+    synapse.serialize( model = model )
+    return synapse
+axon.attach( get_params ).start()
 
 # training loop
 step = 0
