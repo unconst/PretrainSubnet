@@ -128,6 +128,7 @@ def chain_sync():
     bt.logging.info( "Syncing chain state." )
     global metagraph
     global subtensor
+    global my_uid
     if subtensor.block - metagraph.last_update[my_uid] > 50:
         bt.logging.info( f"Setting weights on chain at block {subtensor.block}" )
         subtensor.set_weights( netuid = config.netuid, wallet = wallet, uids = [my_uid], weights = [1.0] )
@@ -142,14 +143,15 @@ def get_params( synapse: reduce.GetParams ) -> reduce.GetParams:
     return synapse
 axon.attach( get_params ).start()
 
-while True:
-    # Reduce model weights with random.
-    if reduce.reduce( model, dendrite, metagraph, replace = True ): 
-        break
-    else: 
-        # Sync chain state and try again.
-        chain_sync()
-        continue
+if not config.local:
+    while True:
+        # Reduce model weights with random.
+        if reduce.reduce( model, dendrite, metagraph, replace = True ): 
+            break
+        else: 
+            # Sync chain state and try again.
+            chain_sync()
+            continue
 
 
 # training loop
