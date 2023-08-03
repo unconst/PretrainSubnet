@@ -57,7 +57,7 @@ class GetParams(bt.Synapse):
                 bt.logging.warning("Failed to deserialize state_dict.")
                 return {}
 
-def reduce(model, dendrite, metagraph, replace:bool = False):
+def reduce(model, dendrite, metagraph, replace:bool = False) -> bool:
     """
     This function averages model parameters with parameters of a randomly selected online Axon in the network.
 
@@ -77,7 +77,7 @@ def reduce(model, dendrite, metagraph, replace:bool = False):
     online = [axon for ping, axon in zip(pings, metagraph.axons) if ping.is_success]
     if not online:
         bt.logging.warning("No online uids to all reduce with.")
-        return
+        return False
     else:
         bt.logging.debug(f"Found {len(online)} online uids to all reduce with.")
 
@@ -85,9 +85,9 @@ def reduce(model, dendrite, metagraph, replace:bool = False):
     to_query = random.choice(online)
 
     # Reduce with the selected axon.
-    reduce_with_axon(model, dendrite, to_query, replace=replace)
+    return reduce_with_axon(model, dendrite, to_query, replace=replace)
 
-def reduce_with_axon(model, dendrite, axon, replace:bool = False):
+def reduce_with_axon(model, dendrite, axon, replace:bool = False) -> bool:
     """
     Function to fetch the parameters of a selected axon, validate them,
     and if valid, average the model's parameters with the fetched parameters.
@@ -102,12 +102,12 @@ def reduce_with_axon(model, dendrite, axon, replace:bool = False):
         replace (bool): Whether to replace the model's parameters with the averaged parameters. If False, the averaged parameters are stored in the model's buffer.
 
     Returns:
-        None
+        bool: Whether the parameter averaging was successful.
     """
     bt.logging.debug(f"Reducing with axon: {axon}.")
 
     # Fetch the parameters of the selected axon.
-    state_dict = dendrite.query(axon, GetParams())
+    state_dict = dendrite.query(axon, GetParams(), timeout = 24 )
 
     # Validate the received state_dict. If it's not valid, log a warning and return without updating parameters.
     if not is_valid_state_dict(model, state_dict):
@@ -127,6 +127,7 @@ def reduce_with_axon(model, dendrite, axon, replace:bool = False):
 
     # Log that the parameter averaging is complete.
     bt.logging.info("All reduce successful.")
+    return True
     
 
 def is_valid_state_dict(model, state_dict) -> bool:

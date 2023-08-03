@@ -142,7 +142,15 @@ def get_params( synapse: reduce.GetParams ) -> reduce.GetParams:
     return synapse
 axon.attach( get_params ).start()
 
-reduce.reduce( model, dendrite, metagraph, replace = True )
+while True:
+    # Reduce model weights with random.
+    if reduce.reduce( model, dendrite, metagraph, replace = True ): 
+        break
+    else: 
+        # Sync chain state and try again.
+        chain_sync()
+        continue
+
 
 # training loop
 step = 0
