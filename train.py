@@ -198,9 +198,9 @@ for epoch in range(3):
                 # Increment step.
                 step += 1
 
-                if ( subtensor.block % config.blocks_per_reduce + my_uid ) == 0 and not config.local:
-                    # Perform the reduction
-                    success, model = reduce.reduce(model, dendrite, metagraph)
+            if ( subtensor.block % config.blocks_per_reduce + my_uid ) == 0 and not config.local:
+                # Perform the reduction
+                success, model = reduce.reduce(model, dendrite, metagraph)
 
 
         except RuntimeError as e:
