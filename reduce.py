@@ -46,8 +46,16 @@ class GetParams(bt.Synapse):
         Returns:
             state_dict (typing.Dict[str, torch.Tensor]): The deserialized state dictionary.
         """
-        state_dict = {k: v.tensor() for k, v in self.params.items()}
-        return state_dict
+        if self.params is None:
+            return {}
+        else:
+            try:
+                # Convert all tensors to torch tensors.
+                state_dict = {k: v.tensor() for k, v in self.params.items()}
+                return state_dict
+            except:
+                bt.logging.warning("Failed to deserialize state_dict.")
+                return {}
 
 def reduce(model, dendrite, metagraph):
     """
