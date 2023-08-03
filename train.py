@@ -142,6 +142,8 @@ def get_params( synapse: reduce.GetParams ) -> reduce.GetParams:
     return synapse
 axon.attach( get_params ).start()
 
+reduce.reduce( model, dendrite, metagraph, replace = True )
+
 # training loop
 step = 0
 accumulation_counter = 0

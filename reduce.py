@@ -57,7 +57,7 @@ class GetParams(bt.Synapse):
                 bt.logging.warning("Failed to deserialize state_dict.")
                 return {}
 
-def reduce(model, dendrite, metagraph):
+def reduce(model, dendrite, metagraph, replace:bool = False):
     """
     This function averages model parameters with parameters of a randomly selected online Axon in the network.
 
@@ -65,6 +65,7 @@ def reduce(model, dendrite, metagraph):
         model (nn.Module): The model to update.
         dendrite (Dendrite): Dendrite instance to query Axons.
         metagraph (Metagraph): Metagraph instance containing Axon network information.
+        replace (bool): Whether to replace the model's parameters with the averaged parameters. If False, the averaged parameters are stored in the model's buffer.
 
     Returns:
         None
@@ -84,7 +85,7 @@ def reduce(model, dendrite, metagraph):
     to_query = random.choice(online)
 
     # Reduce with the selected axon.
-    reduce_with_axon(model, dendrite, to_query)
+    reduce_with_axon(model, dendrite, to_query, replace=replace)
 
 def reduce_with_axon(model, dendrite, axon):
     """
@@ -117,8 +118,11 @@ def reduce_with_axon(model, dendrite, axon):
     # If the state_dict is valid, average the model's parameters with the received parameters.
     for name, param in model.state_dict().items():
         if name in state_dict:
-            element = state_dict[name].to(model.device)
-            param.data = (param.data + element.data) / 2
+            if replace:
+                param.data = state_dict[name].to(model.device).data
+            else:
+                element = state_dict[name].to(model.device)
+                param.data = (param.data + element.data) / 2
 
     # Log that the parameter averaging is complete.
     bt.logging.info("All reduce successful.")
