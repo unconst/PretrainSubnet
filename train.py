@@ -33,7 +33,7 @@ def parse_arguments():
     parser.add_argument( '--accs_per_step', type=int, default = 5, help = 'Number of training accumulation steps.')
     parser.add_argument( '--steps_per_log', type=int, default = 1, help = 'Number of steps per log.')
     parser.add_argument( '--steps_per_sync', type=int, default = 200, help = 'Number of steps per chain sync.')
-    parser.add_argument( '--blocks_per_reduce', type=int, default = 15, help = 'Number of steps reduce.')
+    parser.add_argument( '--blocks_per_reduce', type=int, default = 22, help = 'Number of steps reduce.')
     parser.add_argument( '--num_warmup', type=int, default = 2000, help = 'Scheduler warm up steps.')
     parser.add_argument( '--netuid', type = int, default = 1, help = "The chain subnet uid." )
     parser.add_argument( '--chain_endpoint', type = str, default = "wss://test.finney.opentensor.ai", help="The chain endpoint to connect with." )
