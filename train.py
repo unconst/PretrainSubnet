@@ -31,6 +31,7 @@ def parse_arguments():
     parser.add_argument( '--max_steps', type=int, default = 50000, help = 'Max training steps.')
     parser.add_argument( '--steps_per_log', type=int, default = 1, help = 'Number of steps per log.')
     parser.add_argument( '--steps_per_sync', type=int, default = 10, help = 'Number of steps per chain sync.')
+    parser.add_argument( '--steps_per_reduce', type=int, default = 10, help = 'Number of steps reduce.')
     parser.add_argument( '--num_warmup', type=int, default = 2000, help = 'Scheduler warm up steps.')
     parser.add_argument( '--accs_per_step', type=int, default= 3, help = 'Number of training accumulation steps.')
     parser.add_argument( '--netuid', type = int, default = 1, help = "The chain subnet uid." )
@@ -181,6 +182,7 @@ for epoch in range(3):
             # Increment step.
             step += 1
 
+        if step % config.steps_per_reduce == 0 and not config.local:
             # Reduce gradients
             reduce.reduce( model, dendrite, metagraph )
 
