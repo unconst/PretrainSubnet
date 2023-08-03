@@ -109,7 +109,8 @@ def reduce_with_axon(model, dendrite, axon):
     # If the state_dict is valid, average the model's parameters with the received parameters.
     for name, param in model.state_dict().items():
         if name in state_dict:
-            param.data = (param.data + state_dict[name].data) / 2
+            element = state_dict[name].to(model.device)
+            param.data = (param.data + element.data) / 2
 
     # Log that the parameter averaging is complete.
     bt.logging.info("All reduce successful.")
