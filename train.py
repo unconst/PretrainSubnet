@@ -144,9 +144,6 @@ def get_params( synapse: reduce.GetParams ) -> reduce.GetParams:
 axon.attach( get_params ).start()
 
 
-def compute_euclidean_distance(tensor1, tensor2):
-    return torch.sqrt(torch.sum((tensor1 - tensor2) ** 2)).item()
-
 if not config.local:
     is_first = True
     while True:
