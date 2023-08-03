@@ -25,6 +25,7 @@ def parse_arguments():
     parser.add_argument( '--n_layer', type=int, default = 12, help = 'Number of gpt2 model layers')
     parser.add_argument( '--local', action="store_true", default = False, help = 'Turn on local training.')
     parser.add_argument( '--wandb', action="store_true", default = False, help = 'Turn on wandb')
+    parser.add_argument( '--no_initial_sync', action="store_true", default = False, help = 'Turn off initial model sync.')
     parser.add_argument( '--mock', action="store_true", default = False, help = 'Turn on mocking.')
     parser.add_argument( '--self_query', action="store_true", default = False, help = 'Query only yourself.')
     parser.add_argument( '--max_k', type=int, default = 1, help = 'Max number of gradients to merge.')
@@ -137,7 +138,7 @@ if not config.local:
     chain_sync()
 
 # Pull latest weights.
-if not config.local:
+if not config.local and not config.no_initial_sync:
     is_first = True
     while True:
         # Reduce model weights with random.
@@ -201,6 +202,7 @@ for epoch in range(3):
                 # Increment step.
                 step += 1
 
+                # Check if we need to sync based on blocks passed since last sync.
                 current_block = subtensor.block
                 if current_block - last_sync_block > config.blocks_per_reduce and not config.local:
                     # Perform the reduction
