@@ -122,16 +122,28 @@ def reduce_with_axon(model, dendrite, axon, replace:bool = False) -> bool:
     else:
         bt.logging.debug("Valid state dict received from axon.")
 
-    # If the state_dict is valid, average the model's parameters with the received parameters.
+    def compute_euclidean_distance(tensor1, tensor2):
+        return torch.sqrt(torch.sum((tensor1 - tensor2) ** 2)).item()
+
     for name, param in model.state_dict().items():
         if name in state_dict:
-            if replace:
-                param.data = state_dict[name].to(model.device).data
+            element = state_dict[name].to(param.device)
+            if element.shape == param.shape:
+                original_param_data = param.data.clone()  # Clone the original data for comparison
+
+                if replace:
+                    param.data = element.data
+                else:
+                    param.data = (param.data + element.data) / 2
+
+                # Compute and log the Euclidean distance
+                distance = compute_euclidean_distance(original_param_data, param.data)
+                bt.logging.trace(f"For layer {name}, the Euclidean distance between the original "
+                    f"and new parameters is {distance}")
             else:
-                element = state_dict[name].to(model.device)
-                param.data = (param.data + element.data) / 2
+                bt.logging.warning(f"Skipping {name} due to incompatible shapes.")
         else:
-            bt.logging.warning(f"Parameter {name} not found in state_dict.")
+            bt.logging.warning(f"Parameter {name} not found in provided state_dict.")
 
     # Log that the parameter averaging is complete.
     bt.logging.info("All reduce successful.")
