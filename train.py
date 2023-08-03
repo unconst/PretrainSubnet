@@ -150,6 +150,9 @@ if not config.local:
             chain_sync()
             continue
 
+    # Record the last sync block.
+    last_sync_block = subtensor.block
+
 # Set up synapse.
 def get_params( synapse: reduce.GetParams ) -> reduce.GetParams:
     global model
@@ -198,9 +201,11 @@ for epoch in range(3):
                 # Increment step.
                 step += 1
 
-            if ( subtensor.block % config.blocks_per_reduce + my_uid ) == 0 and not config.local:
-                # Perform the reduction
-                success, model = reduce.reduce(model, dendrite, metagraph)
+                current_block = subtensor.block
+                if current_block - last_sync_block > config.blocks_per_reduce and not config.local:
+                    # Perform the reduction
+                    success, model = reduce.reduce(model, dendrite, metagraph)
+                    last_sync_block = current_block
 
 
         except RuntimeError as e:
