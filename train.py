@@ -150,41 +150,49 @@ accumulation_counter = 0
 for epoch in range(3):
     bt.logging.info( f'Epoch {epoch + 1}/{3}' )
     for batch in dataloader:
-        # Forward pass.
-        outputs = model(
-            input_ids = batch["input_ids"].to(device), 
-            attention_mask = batch["attention_mask"].to(device),
-            labels = batch["input_ids"].to(device)
-        ) 
-        
-        # Backward pass
-        loss = outputs.loss / config.accs_per_step
-        loss.backward()
-        
-        # Accumulate across batches.
-        accumulation_counter += 1
-        if accumulation_counter % config.accs_per_step == 0:
-
-            # Apply gradient step.
-            optimizer.step()
-            scheduler.step() 
-            optimizer.zero_grad()
+        try:
+            # Forward pass.
+            outputs = model(
+                input_ids = batch["input_ids"].to(device), 
+                attention_mask = batch["attention_mask"].to(device),
+                labels = batch["input_ids"].to(device)
+            ) 
             
-            # Log state to terminal and wandb.
-            if step % config.steps_per_log == 0:
-                perplexity = torch.exp(loss * config.accs_per_step).item()
-                loss = loss * config.accs_per_step
-                bt.logging.info(f'Step {step}, Loss {loss}, Perplexity {perplexity}')
-                if config.wandb: wandb.log( {'step': step, 'loss': loss, 'perplexity': perplexity } )
+            # Backward pass
+            loss = outputs.loss / config.accs_per_step
+            loss.backward()
+            
+            # Accumulate across batches.
+            accumulation_counter += 1
+            if accumulation_counter % config.accs_per_step == 0:
 
-            # Sync chain state.
-            if step % config.steps_per_sync == 0 and not config.local:
-                chain_sync()
+                # Apply gradient step.
+                optimizer.step()
+                scheduler.step() 
+                optimizer.zero_grad()
+                
+                # Log state to terminal and wandb.
+                if step % config.steps_per_log == 0:
+                    perplexity = torch.exp(loss * config.accs_per_step).item()
+                    loss = loss * config.accs_per_step
+                    bt.logging.info(f'Step {step}, Loss {loss}, Perplexity {perplexity}')
+                    if config.wandb: wandb.log( {'step': step, 'loss': loss, 'perplexity': perplexity } )
 
-            # Increment step.
-            step += 1
+                # Sync chain state.
+                if step % config.steps_per_sync == 0 and not config.local:
+                    chain_sync()
 
-            if step % config.steps_per_reduce == 0 and not config.local:
-                # Reduce gradients
-                reduce.reduce( model, dendrite, metagraph )
+                # Increment step.
+                step += 1
+
+                if step % config.steps_per_reduce == 0 and not config.local:
+                    # Reduce gradients
+                    reduce.reduce( model, dendrite, metagraph )
+
+        except RuntimeError as e:
+            bt.logging.error(e)
+        
+        except KeyboardInterrupt:
+            bt.logging.info("Keyboard interrupt detected. Saving model and exiting.")
+            exit()
 
