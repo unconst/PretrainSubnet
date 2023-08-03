@@ -143,6 +143,13 @@ def get_params( synapse: reduce.GetParams ) -> reduce.GetParams:
     return synapse
 axon.attach( get_params ).start()
 
+
+def compute_euclidean_distance(tensor1, tensor2):
+    return torch.sqrt(torch.sum((tensor1 - tensor2) ** 2)).item()
+
+# Save a copy of the model's original parameters
+original_state_dict = {name: param.data.clone() for name, param in model.state_dict().items()}
+
 if not config.local:
     is_first = True
     while True:
@@ -154,6 +161,20 @@ if not config.local:
             # Sync chain state and try again.
             chain_sync()
             continue
+
+# Check the Euclidean distance between the model's parameters before and after the reduction
+for name, param in model.state_dict().items():
+    if name in original_state_dict:
+        original_param_data = original_state_dict[name].to(param.device)
+        if original_param_data.shape == param.shape:
+            # Compute and log the Euclidean distance
+            distance = compute_euclidean_distance(original_param_data, param.data)
+            bt.logging.trace(f"For layer {name}, the Euclidean distance between the original "
+                f"and new parameters is {distance}")
+        else:
+            bt.logging.trace(f"Skipping {name} due to incompatible shapes.")
+    else:
+        bt.logging.trace(f"New parameter {name} found in model's state_dict.")
 
 
 # training loop
@@ -198,8 +219,9 @@ for epoch in range(3):
                 step += 1
 
                 if step % config.steps_per_reduce == 0 and not config.local:
-                    # Reduce gradients
-                    reduce.reduce( model, dendrite, metagraph )
+                    # Perform the reduction
+                    reduce.reduce(model, dendrite, metagraph)
+
 
         except RuntimeError as e:
             bt.logging.error(e)
