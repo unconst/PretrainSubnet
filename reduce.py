@@ -57,7 +57,13 @@ class GetParams(bt.Synapse):
                 bt.logging.warning("Failed to deserialize state_dict.")
                 return {}
 
-def reduce(model, dendrite, metagraph, replace:bool = False) -> bool:
+def reduce(
+        model: 'torch.nn.Module', 
+        dendrite: 'bittensor.dendrite', 
+        metagraph: 'bittensor.metagraph', 
+        replace: bool = False, 
+        allow_self: bool = False 
+    ) -> bool:
     """
     This function averages model parameters with parameters of a randomly selected online Axon in the network.
 
@@ -66,15 +72,15 @@ def reduce(model, dendrite, metagraph, replace:bool = False) -> bool:
         dendrite (Dendrite): Dendrite instance to query Axons.
         metagraph (Metagraph): Metagraph instance containing Axon network information.
         replace (bool): Whether to replace the model's parameters with the averaged parameters. If False, the averaged parameters are stored in the model's buffer.
-
+        allow_self (bool): Whether to allow the selected axon to be the same as the dendrite.
     Returns:
-        None
+        bool: Whether the parameter averaging was successful.
     """
     # Query all axons in the network.
     pings = dendrite.query( metagraph.axons, timeout = 2 )
 
     # Filter out online axons.
-    online = [axon for ping, axon in zip(pings, metagraph.axons) if ping.is_success and ping.axon.hotkey != ping.dendrite.hotkey ]
+    online = [axon for ping, axon in list(zip(pings, metagraph.axons)) if ping.is_success and (ping.axon.hotkey != ping.dendrite.hotkey or allow_self) ]
     if not online:
         bt.logging.warning("No online uids to all reduce with.")
         return False

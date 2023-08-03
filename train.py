@@ -29,11 +29,11 @@ def parse_arguments():
     parser.add_argument( '--self_query', action="store_true", default = False, help = 'Query only yourself.')
     parser.add_argument( '--max_k', type=int, default = 1, help = 'Max number of gradients to merge.')
     parser.add_argument( '--max_steps', type=int, default = 50000, help = 'Max training steps.')
+    parser.add_argument( '--accs_per_step', type=int, default = 5, help = 'Number of training accumulation steps.')
     parser.add_argument( '--steps_per_log', type=int, default = 1, help = 'Number of steps per log.')
     parser.add_argument( '--steps_per_sync', type=int, default = 200, help = 'Number of steps per chain sync.')
     parser.add_argument( '--steps_per_reduce', type=int, default = 100, help = 'Number of steps reduce.')
     parser.add_argument( '--num_warmup', type=int, default = 2000, help = 'Scheduler warm up steps.')
-    parser.add_argument( '--accs_per_step', type=int, default = 5, help = 'Number of training accumulation steps.')
     parser.add_argument( '--netuid', type = int, default = 1, help = "The chain subnet uid." )
     parser.add_argument( '--chain_endpoint', type = str, default = "wss://test.finney.opentensor.ai", help="The chain endpoint to connect with." )
     bt.subtensor.add_args( parser )
@@ -144,11 +144,13 @@ def get_params( synapse: reduce.GetParams ) -> reduce.GetParams:
 axon.attach( get_params ).start()
 
 if not config.local:
+    is_first = True
     while True:
         # Reduce model weights with random.
-        if reduce.reduce( model, dendrite, metagraph, replace = True ): 
+        if reduce.reduce( model, dendrite, metagraph, replace = True, allow_self = not is_first ): 
             break
         else: 
+            is_first = False
             # Sync chain state and try again.
             chain_sync()
             continue
