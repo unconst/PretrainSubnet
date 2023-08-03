@@ -125,20 +125,26 @@ def reduce_with_axon(model, dendrite, axon, replace:bool = False) -> bool:
     def compute_euclidean_distance(tensor1, tensor2):
         return torch.sqrt(torch.sum((tensor1 - tensor2) ** 2)).item()
 
-    for name in model.state_dict().keys():
+
+    merged_state_dict = {}
+    local_state_dict = model.state_dict()
+    for name in local_state_dict.keys():
         if name in state_dict:
-            element = state_dict[name].to(model.device)
-            param = model.state_dict()[name]
-            if element.shape == param.shape:
+            remote_param = state_dict[name].clone().to(model.device)
+            local_param = local_state_dict[name].clone().to(model.device)
+            if remote_param.shape == local_param.shape:
                 if replace:
                     # update the data in model's state_dict
-                    model.state_dict()[name].data = element.data
+                    merged_state_dict[name] = remote_param
                 else:
-                    model.state_dict()[name].data = (param.data + element.data) / 2
+                    merged_state_dict[name] = (local_param.data + remote_param.data) / 2
             else:
                 print(f"Skipping {name} due to incompatible shapes.")
         else:
             print(f"Parameter {name} not found in provided state_dict.")
+
+    # Set the state dict in the model.
+    model.load_state_dict( merged_state_dict )
 
     # Log that the parameter averaging is complete.
     bt.logging.info("All reduce successful.")
