@@ -154,7 +154,7 @@ if not config.local:
     is_first = True
     while True:
         # Reduce model weights with random.
-        success, model = reduce.reduce( model, dendrite, metagraph, replace = True, allow_self = not is_first ): 
+        success, model = reduce.reduce( model, dendrite, metagraph, replace = True, allow_self = not is_first )
         if success:
             break
         else: 
