@@ -26,6 +26,7 @@ def parse_arguments():
     parser.add_argument( '--sl', type=int, default = 1024, help = 'Training sequence length.')
     parser.add_argument( '--n_head', type=int, default = 12, help = 'Model number of attention heads')
     parser.add_argument( '--n_layer', type=int, default = 12, help = 'Number of gpt2 model layers')
+    parser.add_argument( '--load', action="store_true", default = False, help = 'Load local model instead of sync.')
     parser.add_argument( '--local', action="store_true", default = False, help = 'Turn on local training.')
     parser.add_argument( '--wandb', action="store_true", default = False, help = 'Turn on wandb')
     parser.add_argument( '--validator', action="store_true", default = False, help = 'Turn on validating')
@@ -84,6 +85,7 @@ def setup_model_and_tokenizer():
 
 bt.logging.info( "setting up model" )
 model, tokenizer, device = setup_model_and_tokenizer()
+model.to(device).train()
 pass
 
 # Save + load model.
@@ -95,8 +97,11 @@ def load_model():
     model, _, _ = setup_model_and_tokenizer()
     model.load_state_dict(torch.load(config.full_path + '/model.pt'))
     return model
-save_model( model )
-model = load_model().to(device).train()
+
+# Optionally load model from disk.
+if config.load:
+    model = load_model().to(device).train()
+
 
 # Load dataloader
 def load_dataloader():
@@ -169,7 +174,7 @@ if not config.local:
 
 # Pull latest weights.
 last_merge_axon = None
-if not config.local and not config.no_initial_sync:
+if not config.local and not config.no_initial_sync and not config.load:
     is_first = True
     tries = 0
     while tries < 5:
@@ -253,6 +258,7 @@ for epoch in range(3):
                     bt.logging.debug( f"New best loss: {loss}" )
                     # Save the model as the best we have.
                     save_model( model )
+                    best_loss = loss
 
                 # Check if we need to sync based on blocks passed since last sync.
                 current_block = subtensor.block
