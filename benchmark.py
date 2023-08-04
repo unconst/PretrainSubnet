@@ -98,8 +98,7 @@ def calculate_wikitext_perplexity( model: torch.nn.Module, tokenizer, device: st
     perplexity = torch.exp(torch.stack(lls).sum() / end_loc)
     return perplexity.item()
 
-
 # Run benchmark
-bt.logging.info(f'Running benchmark on {config.dataset}')
+bt.logging.info(f'Running calculate_wikitext_perplexity')
 perplexity = calculate_wikitext_perplexity( model = model, tokenizer = tokenizer, device=device)
 bt.logging.success(f'{config.dataset}: {perplexity.item()}')
