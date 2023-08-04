@@ -299,8 +299,8 @@ for epoch in range(3):
                     bt.logging.info(f'Running eval')
 
                     # Load wiki test test.
-                    validation_datasets = load_dataset('wikitext', "wikitext-2-raw-v1", split="test")
-                    encodings = tokenizer("\n\n".join(dataset["text"]), return_tensors="pt")
+                    validation_dataset = load_dataset('wikitext', "wikitext-2-raw-v1", split="test")
+                    encodings = tokenizer("\n\n".join(validation_dataset["text"]), return_tensors="pt")
                         
                     # Compute perplexity.
                     max_length = config.sl
