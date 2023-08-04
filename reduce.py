@@ -91,7 +91,7 @@ def reduce(
     to_query = random.choice(online)
 
     # Reduce with the selected axon.
-    return reduce_with_axon(model, dendrite, to_query, replace=replace)
+    return reduce_with_axon(model, dendrite, to_query, replace=replace), to_query
 
 def reduce_with_axon(model, dendrite, axon, replace:bool = False) -> bool:
     """

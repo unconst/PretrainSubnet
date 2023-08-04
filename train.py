@@ -25,6 +25,7 @@ def parse_arguments():
     parser.add_argument( '--n_layer', type=int, default = 12, help = 'Number of gpt2 model layers')
     parser.add_argument( '--local', action="store_true", default = False, help = 'Turn on local training.')
     parser.add_argument( '--wandb', action="store_true", default = False, help = 'Turn on wandb')
+    parser.add_argument( '--validator', action="store_true", default = False, help = 'Turn on validating')
     parser.add_argument( '--no_initial_sync', action="store_true", default = False, help = 'Turn off initial model sync.')
     parser.add_argument( '--mock', action="store_true", default = False, help = 'Turn on mocking.')
     parser.add_argument( '--self_query', action="store_true", default = False, help = 'Query only yourself.')
@@ -34,6 +35,7 @@ def parse_arguments():
     parser.add_argument( '--steps_per_log', type=int, default = 1, help = 'Number of steps per log.')
     parser.add_argument( '--steps_per_sync', type=int, default = 200, help = 'Number of steps per chain sync.')
     parser.add_argument( '--blocks_per_reduce', type=int, default = 22, help = 'Number of steps reduce.')
+    parser.add_argument( '--blocks_per_set_weights', type=int, default = 100, help = 'Number of blocks before we set weights.')
     parser.add_argument( '--num_warmup', type=int, default = 2000, help = 'Scheduler warm up steps.')
     parser.add_argument( '--netuid', type = int, default = 1, help = "The chain subnet uid." )
     parser.add_argument( '--chain_endpoint', type = str, default = "wss://test.finney.opentensor.ai", help="The chain endpoint to connect with." )
@@ -113,6 +115,7 @@ subtensor = bt.subtensor( chain_endpoint = config.chain_endpoint  )
 dendrite = bt.dendrite( wallet = wallet )
 axon = bt.axon( wallet = wallet, config = config )
 metagraph = subtensor.metagraph( config.netuid )
+last_set_weights = subtensor.block
 
 # Register our wallet, serve our axon, get our uid.
 if not config.local:
@@ -142,7 +145,7 @@ if not config.local and not config.no_initial_sync:
     is_first = True
     while True:
         # Reduce model weights with random.
-        success, model = reduce.reduce( model, dendrite, metagraph, replace = True, allow_self = not is_first )
+        success, model, last_merge_axon = reduce.reduce( model, dendrite, metagraph, replace = True, allow_self = not is_first )
         if success:
             break
         else: 
@@ -164,6 +167,8 @@ axon.attach( get_params ).start()
 # training loop
 step = 0
 accumulation_counter = 0
+alpha = 0.9
+weights = {} # Map from hotkey to loss.
 for epoch in range(3):
     bt.logging.info( f'Epoch {epoch + 1}/{3}' )
     for batch in dataloader:
@@ -178,6 +183,12 @@ for epoch in range(3):
             # Backward pass
             loss = outputs.loss / config.accs_per_step
             loss.backward()
+
+            # Update weights for miner.
+            if last_merge_axon in weights:
+                weights[ last_merge_axon.axon.hotkey ] = alpha * loss.item() + (1 - alpha) * weights[ last_merge_axon.axon.hotkey ]
+            else:
+                weights[ last_merge_axon.axon.hotkey ] = loss.item()
             
             # Accumulate across batches.
             accumulation_counter += 1
@@ -206,8 +217,27 @@ for epoch in range(3):
                 current_block = subtensor.block
                 if current_block - last_sync_block > config.blocks_per_reduce and not config.local:
                     # Perform the reduction
-                    success, model = reduce.reduce(model, dendrite, metagraph)
+                    success, model, last_merge_axon = reduce.reduce(model, dendrite, metagraph)
                     last_sync_block = current_block
+
+                if current_block - last_set_weights > config.blocks_per_set_weights and not config.local:
+                    # Create weights tensor.
+                    weights = torch.zeros_like( metagraph.uids )
+                    for uid in metagraph.uids:
+                        if metagraph.hotkeys[uid] in weights:
+                            weights[uid] = weights[ metagraph.hotkeys[uid] ]
+
+                    # Normalize weights across uids.
+                    weights = torch.nn.functional.normalize( weights, p = 1.0, dim = 0, out = weights )
+
+                    # Set absolute weights
+                    subtensor.set_weights( 
+                        netuid = config.netuid, 
+                        wallet = wallet, 
+                        uids = metagraph.uids, 
+                        weights = weights
+                    )
+                    last_set_weights = current_block
 
 
         except RuntimeError as e:
