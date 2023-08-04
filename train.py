@@ -144,13 +144,15 @@ if not config.local:
 last_merge_axon = None
 if not config.local and not config.no_initial_sync:
     is_first = True
-    while True:
+    tries = 0
+    while tries < 5:
         # Reduce model weights with random.
         success, last_merge_axon = reduce.reduce( model, dendrite, metagraph, replace = True, allow_self = not is_first )
         if success:
             break
         else: 
             is_first = False
+            tries += 1 
             # Sync chain state and try again.
             chain_sync()
             continue
