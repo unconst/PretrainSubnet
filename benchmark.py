@@ -45,6 +45,7 @@ def load_model_and_tokenizer():
         bt.logging.info(f'Loading local model from {config.full_path}')
         tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
         tokenizer.pad_token = tokenizer.eos_token
+        print ( tokenizer.eos_token_id )
         model = GPT2LMHeadModel(GPT2Config(n_layer = config.n_layer, n_head = config.n_head))
         model.load_state_dict(torch.load(config.full_path + '/model.pt'))
     elif config.model == 'gpt2':
@@ -91,7 +92,7 @@ def compute_perplexity(model, dataset):
         trg_len = end_loc - prev_end_loc  # may be different from stride on last loop
         input_ids = encodings.input_ids[:, begin_loc:end_loc].to(device)
         target_ids = input_ids.clone()
-        target_ids[:, :-trg_len] = -100
+        target_ids[:, :-trg_len] = 50256
 
         with torch.no_grad():
             outputs = model(input_ids, labels=target_ids)
