@@ -37,6 +37,7 @@ def parse_arguments():
     parser.add_argument( '--accs_per_step', type=int, default = 5, help = 'Number of training accumulation steps.')
     parser.add_argument( '--steps_per_log', type=int, default = 1, help = 'Number of steps per log.')
     parser.add_argument( '--steps_per_sync', type=int, default = 100, help = 'Number of steps per chain sync.')
+    parser.add_argument( '--steps_per_eval', type=int, default = 300, help = 'Number of steps per eval.')
     parser.add_argument( '--blocks_per_reduce', type=int, default = 22, help = 'Number of steps reduce.')
     parser.add_argument( '--blocks_per_set_weights', type=int, default = 100, help = 'Number of blocks before we set weights.')
     parser.add_argument( '--num_warmup', type=int, default = 2000, help = 'Scheduler warm up steps.')
@@ -286,11 +287,53 @@ for epoch in range(3):
                     bt.logging.info( f"Set weights on chain at block {current_block}" )
 
 
+                # Run eval online.
+                if step % config.steps_per_eval == 0:
+
+                    bt.logging.info(f'Running eval')
+
+                    # Load wiki test test.
+                    validation_datasets = load_dataset('wikitext', "wikitext-2-raw-v1", split="test")
+                    encodings = tokenizer("\n\n".join(dataset["text"]), return_tensors="pt")
+                        
+                    # Compute perplexity.
+                    max_length = config.sl
+                    stride = config.sl
+                    seq_len = encodings.input_ids.size(1)
+                    nlls = []
+                    prev_end_loc = 0
+                    for begin_loc in tqdm(range(0, seq_len, stride)):
+                        end_loc = min(begin_loc + max_length, seq_len)
+                        trg_len = end_loc - prev_end_loc  # may be different from stride on last loop
+                        input_ids = encodings.input_ids[:, begin_loc:end_loc].to(device)
+                        target_ids = input_ids.clone()
+                        target_ids[:, :-trg_len] = -100
+
+                        with torch.no_grad():
+                            outputs = model(input_ids, labels=target_ids)
+
+                            # loss is calculated using CrossEntropyLoss which averages over valid labels
+                            # N.B. the model only calculates loss over trg_len - 1 labels, because it internally shifts the labels
+                            # to the left by 1.
+                            neg_log_likelihood = outputs.loss
+
+                        nlls.append(neg_log_likelihood)
+
+                        prev_end_loc = end_loc
+                        if end_loc == seq_len:
+                            break
+                    
+                    # Log perplexity.
+                    eval_perplexity = torch.exp(torch.stack(nlls).mean())
+                    bt.logging.success(f'Eval perplexity: {perplexity.item()}')
+                    if config.wandb: wandb.log( {'eval_perplexity': eval_perplexity.item() } )
+
+        # Catch unknown errors.
         except RuntimeError as e:
             bt.logging.error(e)
             traceback.print_exc()
-
-        
+    
+        # Catch keyboard interrupt.
         except KeyboardInterrupt:
             bt.logging.info("Keyboard interrupt detected. Saving model and exiting.")
             if config.wandb:
