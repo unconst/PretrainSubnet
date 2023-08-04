@@ -4,3 +4,4 @@ chardet
 wandb
 datasets
 transformers
+zstandard
