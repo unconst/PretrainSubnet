@@ -231,7 +231,7 @@ for epoch in range(3):
                 if current_block - last_set_weights > config.blocks_per_set_weights and not config.local:
                     bt.logging.info( f"Setting weights on chain at block {current_block}" )
                     # Create weights tensor.
-                    weights = torch.zeros_like( metagraph.uids )
+                    weights = torch.zeros_like( metagraph.uids, dtype = torch.float32)
                     for uid in metagraph.uids:
                         if metagraph.hotkeys[uid.item()] in moving_average_scores:
                             weights[uid] = weights[ metagraph.hotkeys[uid] ]
