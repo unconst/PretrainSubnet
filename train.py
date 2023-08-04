@@ -122,6 +122,15 @@ optimizer = torch.optim.AdamW (model.parameters(), lr = config.lr)
 scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=config.num_warmup, num_training_steps=config.max_steps)  # assuming total steps
 pass
 
+# Set up Bittensor
+bt.logging.info( "setting up bittensor" )
+wallet = bt.wallet( config = config ).create_if_non_existent()
+subtensor = bt.subtensor( chain_endpoint = config.chain_endpoint  )
+dendrite = bt.dendrite( wallet = wallet )
+axon = bt.axon( wallet = wallet, config = config )
+metagraph = subtensor.metagraph( config.netuid )
+last_set_weights = subtensor.block
+
 # Set up wandb
 if config.wandb:
     bt.logging.info( "setting up wandb" )
@@ -131,17 +140,9 @@ if config.wandb:
         entity = "opentensor-dev",
         config = config,
         mode = "online",
+        tags=[wallet.hotkey.ss58_address, wallet.coldkeypub.ss58_address],
         dir = config.full_path,
     )
-
-# Set up Bittensor
-bt.logging.info( "setting up bittensor" )
-wallet = bt.wallet( config = config ).create_if_non_existent()
-subtensor = bt.subtensor( chain_endpoint = config.chain_endpoint  )
-dendrite = bt.dendrite( wallet = wallet )
-axon = bt.axon( wallet = wallet, config = config )
-metagraph = subtensor.metagraph( config.netuid )
-last_set_weights = subtensor.block
 
 # Register our wallet, serve our axon, get our uid.
 if not config.local:
