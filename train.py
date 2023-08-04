@@ -172,7 +172,7 @@ axon.attach( get_params ).start()
 step = 0
 accumulation_counter = 0
 alpha = 0.9
-weights = {} # Map from hotkey to loss.
+moving_average_scores = {} # Map from hotkey to loss.
 for epoch in range(3):
     bt.logging.info( f'Epoch {epoch + 1}/{3}' )
     for batch in dataloader:
@@ -190,11 +190,11 @@ for epoch in range(3):
 
             # Update weights for miner.
             if last_merge_axon:
-                if last_merge_axon in weights:
-                    weights[ last_merge_axon.axon.hotkey ] = alpha * loss.item() + (1 - alpha) * weights[ last_merge_axon.axon.hotkey ]
+                if last_merge_axon in moving_average_scores:
+                    moving_average_scores[ last_merge_axon.axon.hotkey ] = alpha * loss.item() + (1 - alpha) * moving_average_scores[ last_merge_axon.axon.hotkey ]
                 else:
-                    weights[ last_merge_axon.axon.hotkey ] = loss.item()
-                bt.logging.info( f"Updated weights for {last_merge_axon.axon.hotkey} to {weights[ last_merge_axon.axon.hotkey ]}" )
+                    moving_average_scores[ last_merge_axon.axon.hotkey ] = loss.item()
+                bt.logging.info( f"Updated weights for {last_merge_axon.axon.hotkey} to {moving_average_scores[ last_merge_axon.axon.hotkey ]}" )
 
             # Accumulate across batches.
             accumulation_counter += 1
@@ -233,7 +233,7 @@ for epoch in range(3):
                     # Create weights tensor.
                     weights = torch.zeros_like( metagraph.uids )
                     for uid in metagraph.uids:
-                        if metagraph.hotkeys[uid] in weights:
+                        if metagraph.hotkeys[uid.item()] in moving_average_scores:
                             weights[uid] = weights[ metagraph.hotkeys[uid] ]
 
                     # Normalize weights across uids.
