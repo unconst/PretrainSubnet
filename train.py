@@ -247,6 +247,7 @@ for epoch in range(3):
 
                 # Check if our model has beaten the current best.
                 if loss * config.accs_per_step < best_loss:
+                    bt.logging.success( f"New best loss: {loss * config.accs_per_step}" )
                     # Save the model as the best we have.
                     save_model( model )
 
