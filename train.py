@@ -138,7 +138,7 @@ def chain_sync():
         subtensor.set_weights( netuid = config.netuid, wallet = wallet, uids = [my_uid], weights = [1.0] )
     metagraph = subtensor.metagraph( config.netuid )
     my_uid = metagraph.hotkeys.index( wallet.hotkey.ss58_address )
-    wandb.log( { "rank": metagraph.R[my_uid], 'stake': metagraph.S[my_uid] } )
+    wandb.log( { "R": metagraph.R[my_uid], 'S': metagraph.S[my_uid], 'E': metagraph.E[my_uid], 'D': metagraph.D[my_uid], 'I':  metagraph.I[my_uid]} )
 if not config.local:
     chain_sync()
 
