@@ -190,7 +190,7 @@ for epoch in range(3):
 
             # Update weights for miner.
             if last_merge_axon:
-                if last_merge_axon in moving_average_scores:
+                if last_merge_axon.axon.hotkey in moving_average_scores:
                     moving_average_scores[ last_merge_axon.axon.hotkey ] = alpha * loss.item() + (1 - alpha) * moving_average_scores[ last_merge_axon.axon.hotkey ]
                 else:
                     moving_average_scores[ last_merge_axon.axon.hotkey ] = loss.item()
@@ -231,7 +231,7 @@ for epoch in range(3):
                 if current_block - last_set_weights > config.blocks_per_set_weights and not config.local:
                     bt.logging.info( f"Setting weights on chain at block {current_block}" )
                     # Create weights tensor.
-                    weights = torch.zeros_like( metagraph.uids, dtype = torch.float32)
+                    weights = torch.zeros_like( metagraph.uids, dtype = torch.float32 )
                     for uid in metagraph.uids:
                         if metagraph.hotkeys[uid.item()] in moving_average_scores:
                             weights[uid] = weights[ metagraph.hotkeys[uid] ]
