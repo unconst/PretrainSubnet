@@ -83,7 +83,7 @@ def reduce(
     online = [axon for ping, axon in list(zip(pings, metagraph.axons)) if ping.is_success and (ping.axon.hotkey != ping.dendrite.hotkey or allow_self) ]
     if not online:
         bt.logging.warning("No online uids to all reduce with.")
-        return False, model
+        return False, None
     else:
         bt.logging.debug(f"Found {len(online)} online uids to all reduce with.")
 
@@ -118,7 +118,7 @@ def reduce_with_axon(model, dendrite, axon, replace:bool = False) -> bool:
     # Validate the received state_dict. If it's not valid, log a warning and return without updating parameters.
     if not is_valid_state_dict(model, state_dict):
         bt.logging.warning("Invalid state dict received from axon.")
-        return False, model
+        return False
     else:
         bt.logging.debug("Valid state dict received from axon.")
 
@@ -135,7 +135,7 @@ def reduce_with_axon(model, dendrite, axon, replace:bool = False) -> bool:
 
     # Log that the parameter averaging is complete.
     bt.logging.info("All reduce successful.")
-    return True, model
+    return True
 
 def average_state_dict( model, state_dict ):
     """

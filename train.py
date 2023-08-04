@@ -224,7 +224,7 @@ for epoch in range(3):
                 if current_block - last_sync_block > config.blocks_per_reduce and not config.local:
                     bt.logging.info( f"Reducing model at block {current_block}" )
                     # Perform the reduction
-                    success, model, last_merge_axon = reduce.reduce(model, dendrite, metagraph)
+                    success, last_merge_axon = reduce.reduce(model, dendrite, metagraph)
                     last_sync_block = current_block
                     bt.logging.info( f"Reduced with axon {last_merge_axon}" )
 
