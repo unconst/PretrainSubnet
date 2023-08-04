@@ -134,9 +134,6 @@ def chain_sync():
     global metagraph
     global subtensor
     global my_uid
-    if subtensor.block - metagraph.last_update[my_uid] > 50:
-        bt.logging.info( f"Setting weights on chain at block {subtensor.block}" )
-        subtensor.set_weights( netuid = config.netuid, wallet = wallet, uids = [my_uid], weights = [1.0] )
     metagraph = subtensor.metagraph( config.netuid )
     my_uid = metagraph.hotkeys.index( wallet.hotkey.ss58_address )
     wandb.log( { "R": metagraph.R[my_uid], 'S': metagraph.S[my_uid], 'E': metagraph.E[my_uid], 'D': metagraph.D[my_uid], 'I':  metagraph.I[my_uid]} )
