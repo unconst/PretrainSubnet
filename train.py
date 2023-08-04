@@ -33,7 +33,7 @@ def parse_arguments():
     parser.add_argument( '--max_steps', type=int, default = 50000, help = 'Max training steps.')
     parser.add_argument( '--accs_per_step', type=int, default = 5, help = 'Number of training accumulation steps.')
     parser.add_argument( '--steps_per_log', type=int, default = 1, help = 'Number of steps per log.')
-    parser.add_argument( '--steps_per_sync', type=int, default = 200, help = 'Number of steps per chain sync.')
+    parser.add_argument( '--steps_per_sync', type=int, default = 100, help = 'Number of steps per chain sync.')
     parser.add_argument( '--blocks_per_reduce', type=int, default = 22, help = 'Number of steps reduce.')
     parser.add_argument( '--blocks_per_set_weights', type=int, default = 100, help = 'Number of blocks before we set weights.')
     parser.add_argument( '--num_warmup', type=int, default = 2000, help = 'Scheduler warm up steps.')
@@ -136,7 +136,9 @@ def chain_sync():
     if subtensor.block - metagraph.last_update[my_uid] > 50:
         bt.logging.info( f"Setting weights on chain at block {subtensor.block}" )
         subtensor.set_weights( netuid = config.netuid, wallet = wallet, uids = [my_uid], weights = [1.0] )
-        metagraph = subtensor.metagraph( config.netuid )
+    metagraph = subtensor.metagraph( config.netuid )
+    my_uid = metagraph.hotkeys.index( wallet.hotkey.ss58_address )
+    wandb.log( { "rank": metagraph.R[my_uid], 'stake': metagraph.S[my_uid] } )
 if not config.local:
     chain_sync()
 
