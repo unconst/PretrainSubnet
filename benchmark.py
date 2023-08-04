@@ -42,6 +42,7 @@ def load_model_and_tokenizer():
     # Load pre-trained model and tokenizer
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if config.model == 'local':
+        bt.logging.info(f'Loading local model from {config.full_path}')
         tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
         tokenizer.pad_token = tokenizer.eos_token
         model = GPT2LMHeadModel(GPT2Config(n_layer = config.n_layer, n_head = config.n_head))
