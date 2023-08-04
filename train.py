@@ -96,7 +96,6 @@ def load_model():
     return model
 save_model( model )
 model = load_model().to(device).train()
-exit()
 
 # Load dataloader
 def load_dataloader():
