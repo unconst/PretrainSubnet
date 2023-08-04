@@ -19,6 +19,8 @@ from transformers import GPT2LMHeadModel, GPT2Config, GPT2Tokenizer, AdamW, get_
 
 # Pull in training reduce.
 import reduce
+import dataset
+import benchmark
 
 # Parse arguments
 def parse_arguments():
@@ -104,24 +106,9 @@ def load_model():
 if config.load:
     model = load_model().to(device).train()
 
-
-# Load dataloader
-def load_dataloader():
-    def tokenize_function(examples):
-        return tokenizer(examples["text"], truncation = True, padding = "max_length", max_length = config.sl, return_tensors = "pt")
-    if not config.mock:
-        dataset = load_dataset("togethercomputer/RedPajama-Data-1T", 'default', split='train', streaming=True)
-        dataset = dataset.shuffle(buffer_size = config.bs * 4, seed = random.randint(0, 1000))
-        tokenized_dataset = dataset.map( tokenize_function, batched=True )
-        dataloader = DataLoader( tokenized_dataset, batch_size = config.bs)
-    else:
-        texts = ["mock sentence "+str(i) for i in range(100)]  # creating 100 mock sentences
-        encoded_texts = [tokenize_function({"text": txt}) for txt in texts]
-        dataloader = DataLoader(encoded_texts, batch_size = config.bs)
-    return dataloader
-
+# Load the dataloader
 bt.logging.info( "setting up dataloader" )
-dataloader = load_dataloader()
+dataloader = dataset.get_next_dataloader()
 pass
 
 # Get optimized and scheduler
@@ -297,44 +284,11 @@ for epoch in range(3):
 
                 # Run eval online.
                 if step % config.steps_per_eval == 0:
-
                     bt.logging.info(f'Running eval')
-
-                    # Load wiki test test.
-                    validation_dataset = load_dataset('wikitext', "wikitext-2-raw-v1", split="test")
-                    encodings = tokenizer("\n\n".join(validation_dataset["text"]), return_tensors="pt")
-                        
-                    # Compute perplexity.
-                    max_length = config.sl
-                    stride = config.sl
-                    seq_len = encodings.input_ids.size(1)
-                    nlls = []
-                    prev_end_loc = 0
-                    for begin_loc in tqdm(range(0, seq_len, stride)):
-                        end_loc = min(begin_loc + max_length, seq_len)
-                        trg_len = end_loc - prev_end_loc  # may be different from stride on last loop
-                        input_ids = encodings.input_ids[:, begin_loc:end_loc].to(device)
-                        target_ids = input_ids.clone()
-                        target_ids[:, :-trg_len] = -100
-
-                        with torch.no_grad():
-                            outputs = model(input_ids, labels=target_ids)
-
-                            # loss is calculated using CrossEntropyLoss which averages over valid labels
-                            # N.B. the model only calculates loss over trg_len - 1 labels, because it internally shifts the labels
-                            # to the left by 1.
-                            neg_log_likelihood = outputs.loss
-
-                        nlls.append(neg_log_likelihood)
-
-                        prev_end_loc = end_loc
-                        if end_loc == seq_len:
-                            break
-                    
-                    # Log perplexity.
-                    eval_perplexity = torch.exp(torch.stack(nlls).mean())
+                    eval_perplexity = benchmark.calculate_perplexity( model, tokenizer, device, config )
                     bt.logging.success(f'Eval perplexity: {eval_perplexity.item()}')
                     if config.wandb: wandb.log( {'eval_perplexity': eval_perplexity.item() } )
+
 
         # Catch unknown errors.
         except RuntimeError as e:
