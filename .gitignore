@@ -12,6 +12,9 @@ data/*
 wandb
 wandb/*
 
+scratch
+scratch/*
+
 # Distribution / packaging
 .Python
 build/

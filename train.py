@@ -1,6 +1,7 @@
 # Imports
 import os
 import sys
+import math
 import torch
 import wandb
 import random
@@ -17,6 +18,7 @@ from transformers import GPT2LMHeadModel, GPT2Config, GPT2Tokenizer, AdamW, get_
 # Pull in training reduce.
 import reduce
 
+# Parse arguments
 def parse_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument( '--lr', type=float, default = 3e-4, help = 'Training learning rate.')
@@ -51,6 +53,19 @@ bt.logging( config = config )
 bt.logging.info( config )
 pass
 
+# Construct save directory.
+full_path = os.path.expanduser(
+    "{}/{}/{}/netuid{}/{}".format(
+        config.logging.logging_dir,
+        config.wallet.name,
+        config.wallet.hotkey,
+        config.netuid,
+        config.neuron.name,
+    )
+)
+config.full_path = os.path.expanduser(full_path)
+if not os.path.exists(config.full_path):
+    os.makedirs(config.full_path, exist_ok=True)
 
 # Setup model and tokenizer
 def setup_model_and_tokenizer():
@@ -58,19 +73,27 @@ def setup_model_and_tokenizer():
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
         tokenizer.pad_token = tokenizer.eos_token
-        model = GPT2LMHeadModel(GPT2Config(n_layer = config.n_layer, n_head = config.n_head)).to(device)
-        model.train()
+        model = GPT2LMHeadModel(GPT2Config(n_layer = config.n_layer, n_head = config.n_head))
     else:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
         tokenizer.pad_token = tokenizer.eos_token
-        model = GPT2LMHeadModel(GPT2Config(n_layer = 1, n_head = 1)).to(device)
-        model.train()
+        model = GPT2LMHeadModel(GPT2Config(n_layer = 1, n_head = 1))
     return model, tokenizer, device
 
 bt.logging.info( "setting up model" )
 model, tokenizer, device = setup_model_and_tokenizer()
 pass
+
+# Save + load model.
+def save_model( model ):
+    torch.save(model.state_dict(), config.full_path + 'model.pt')
+def load_model():
+    model, _, _ = setup_model_and_tokenizer()
+    model.load_state_dict(torch.load(config.full_path + 'model.pt'))
+    return model
+save_model()
+model = load_model().to(device).train()
 
 # Load dataloader
 def load_dataloader():
@@ -90,7 +113,6 @@ def load_dataloader():
 bt.logging.info( "setting up dataloader" )
 dataloader = load_dataloader()
 pass
-
 
 # Get optimized and scheduler
 bt.logging.info( "setting up optimizer" )
@@ -162,16 +184,19 @@ last_sync_block = subtensor.block
 
 # Set up synapse.
 def get_params( synapse: reduce.GetParams ) -> reduce.GetParams:
-    global model
-    synapse.serialize( model = model )
+    best_model = load_model()
+    synapse.serialize( model = best_model )
     return synapse
 axon.attach( get_params ).start()
 
-# training loop
-step = 0
-accumulation_counter = 0
-alpha = 0.9
+# Training vars.
+step = 0 # Global step.
+alpha = 0.9 # Moving average coefficient for weights.
+best_loss = math.inf # Best loss seen so far.
+accumulation_counter = 0 # Counter for gradient accumulation.
 moving_average_scores = {} # Map from hotkey to loss.
+
+# Main training loop.
 for epoch in range(3):
     bt.logging.info( f'Epoch {epoch + 1}/{3}' )
     for batch in dataloader:
@@ -218,6 +243,11 @@ for epoch in range(3):
                 # Increment step.
                 step += 1
 
+                # Check if our model has beaten the current best.
+                if loss * config.accs_per_step < best_loss:
+                    # Save the model as the best we have.
+                    save_model( model )
+
                 # Check if we need to sync based on blocks passed since last sync.
                 current_block = subtensor.block
                 if current_block - last_sync_block > config.blocks_per_reduce and not config.local:
@@ -227,6 +257,7 @@ for epoch in range(3):
                     last_sync_block = current_block
                     bt.logging.info( f"Reduced with axon {last_merge_axon}" )
 
+                # Check if we should set weights after this point.
                 if current_block - last_set_weights > config.blocks_per_set_weights and not config.local:
                     bt.logging.info( f"Setting weights on chain at block {current_block}" )
                     # Create weights tensor.
