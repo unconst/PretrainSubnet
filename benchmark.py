@@ -68,7 +68,12 @@ model, tokenizer, device = load_model_and_tokenizer()
 pass
 
 
-def calculate_wikitext_perplexity( model: torch.nn.Module, tokenizer, device: str ):
+def calculate_wikitext_perplexity( 
+        model: torch.nn.Module, 
+        tokenizer, 
+        device: str,
+        sequence_length: int = 1024,
+    ):
 
     # Load the wiki test test.
     dataset = load_dataset('wikitext', 'wikitext-2-raw-v1', 'test')
@@ -76,7 +81,7 @@ def calculate_wikitext_perplexity( model: torch.nn.Module, tokenizer, device: st
 
     # Encode the text.
     encodings = tokenizer(text, return_tensors='pt')
-    max_length = 512
+    max_length = sequence_length
     stride = max_length // 2
     lls = []
 
