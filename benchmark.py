@@ -13,6 +13,7 @@ from torch.nn import functional as F
 def parse_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument( '--name', type = str, default = 'pretrain', help = "Name of run." )
+    parser.add_argument( '--sl', type=int, default = 1024, help = 'Training sequence length.')
     parser.add_argument( '--netuid', type = int, default = 1, help = "The chain subnet uid." )
     parser.add_argument( '--n_head', type=int, default = 12, help = 'Model number of attention heads')
     parser.add_argument( '--n_layer', type=int, default = 12, help = 'Number of gpt2 model layers')
@@ -77,8 +78,8 @@ def compute_perplexity(model, dataset):
     encodings = tokenizer("\n\n".join(dataset["text"]), return_tensors="pt")
     
     # Compute perplexity.
-    max_length = model.config.n_positions
-    stride = 512
+    max_length = config.sl
+    stride = config.sl
     seq_len = encodings.input_ids.size(1)
 
     nlls = []
