@@ -162,7 +162,7 @@ def chain_sync():
     global my_uid
     metagraph = subtensor.metagraph( config.netuid )
     my_uid = metagraph.hotkeys.index( wallet.hotkey.ss58_address )
-    wandb.log( { "R": metagraph.R[my_uid], 'S': metagraph.S[my_uid], 'E': metagraph.E[my_uid], 'D': metagraph.D[my_uid], 'I':  metagraph.I[my_uid]} )
+    if config.wandb: wandb.log( { "R": metagraph.R[my_uid], 'S': metagraph.S[my_uid], 'E': metagraph.E[my_uid], 'D': metagraph.D[my_uid], 'I':  metagraph.I[my_uid]} )
 if not config.local:
     chain_sync()
 
