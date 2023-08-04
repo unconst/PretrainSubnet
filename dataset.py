@@ -37,7 +37,7 @@ def get_next_dataloader(
         dataset = load_dataset('json', data_files = dload_loc )
 
         # Shuffle dataset
-        shuffled_dataset = dataset.shuffle(buffer_size = 1000, seed = random.randint(0, 1000))
+        # shuffled_dataset = dataset.shuffle(buffer_size = 1000, seed = random.randint(0, 1000))
 
         # Tokenize the dataset.
         tokenized_dataset = dataset.map( tokenize_function, batched=True )
