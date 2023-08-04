@@ -233,7 +233,7 @@ for epoch in range(3):
                     weights = torch.zeros_like( metagraph.uids, dtype = torch.float32 )
                     for uid in metagraph.uids:
                         if metagraph.hotkeys[uid.item()] in moving_average_scores:
-                            weights[uid] = weights[ metagraph.hotkeys[uid] ]
+                            weights[uid] = moving_average_scores[ metagraph.hotkeys[uid] ]
 
                     # Normalize weights across uids.
                     weights = torch.nn.functional.normalize( weights, p = 1.0, dim = 0, out = weights )
