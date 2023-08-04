@@ -130,7 +130,8 @@ if config.wandb:
         project = "openpretrain",
         entity = "opentensor-dev",
         config = config,
-        mode = "online"
+        mode = "online",
+        dir = config.full_path,
     )
 
 # Set up Bittensor
