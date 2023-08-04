@@ -6,11 +6,16 @@ from datasets import load_dataset
 from urllib.parse import urlparse
 from torch.utils.data import DataLoader
 
-def get_next_dataloader( config, tokenizer ):
+def get_next_dataloader( 
+        tokenizer,
+        batch_size: int = 1,
+        sequence_length: int = 1024,
+        mock: bool = False,
+    ):
 
     def tokenize_function(examples):
-        return tokenizer(examples["text"], truncation = True, padding = "max_length", max_length = config.sl, return_tensors = "pt")
-    if not config.mock:
+        return tokenizer(examples["text"], truncation = True, padding = "max_length", max_length = sequence_length, return_tensors = "pt")
+    if not mock:
 
          # Get all URLS.
         url = 'https://data.together.xyz/redpajama-data-1T/v1.0.0/urls.txt'
@@ -38,11 +43,11 @@ def get_next_dataloader( config, tokenizer ):
         tokenized_dataset = dataset.map( tokenize_function, batched=True )
 
         # Create dataloader
-        dataloader = DataLoader( tokenized_dataset, batch_size = config.bs)
+        dataloader = DataLoader( tokenized_dataset, batch_size = batch_size)
     else:
         # Load the mock loader.
         texts = ["mock sentence "+str(i) for i in range(100)]  # creating 100 mock sentences
         encoded_texts = [tokenize_function({"text": txt}) for txt in texts]
-        dataloader = DataLoader(encoded_texts, batch_size = config.bs)
+        dataloader = DataLoader(encoded_texts, batch_size = batch_size)
 
     return dataloader

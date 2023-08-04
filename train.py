@@ -108,7 +108,12 @@ if config.load:
 
 # Load the dataloader
 bt.logging.info( "setting up dataloader" )
-dataloader = dataset.get_next_dataloader()
+dataloader = dataset.get_next_dataloader(
+    tokenizer = tokenizer,
+    batch_size = config.bs,
+    sequence_length = config.sl,
+    mock = config.mock,
+)
 pass
 
 # Get optimized and scheduler
