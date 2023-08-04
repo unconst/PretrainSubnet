@@ -143,6 +143,7 @@ if not config.local:
     chain_sync()
 
 # Pull latest weights.
+last_merge_axon = None
 if not config.local and not config.no_initial_sync:
     is_first = True
     while True:
