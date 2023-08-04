@@ -333,7 +333,7 @@ for epoch in range(3):
                     
                     # Log perplexity.
                     eval_perplexity = torch.exp(torch.stack(nlls).mean())
-                    bt.logging.success(f'Eval perplexity: {perplexity.item()}')
+                    bt.logging.success(f'Eval perplexity: {eval_perplexity.item()}')
                     if config.wandb: wandb.log( {'eval_perplexity': eval_perplexity.item() } )
 
         # Catch unknown errors.
