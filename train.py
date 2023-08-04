@@ -187,10 +187,11 @@ for epoch in range(3):
             loss.backward()
 
             # Update weights for miner.
-            if last_merge_axon in weights:
-                weights[ last_merge_axon.axon.hotkey ] = alpha * loss.item() + (1 - alpha) * weights[ last_merge_axon.axon.hotkey ]
-            else:
-                weights[ last_merge_axon.axon.hotkey ] = loss.item()
+            if last_merge_axon:
+                if last_merge_axon in weights:
+                    weights[ last_merge_axon.axon.hotkey ] = alpha * loss.item() + (1 - alpha) * weights[ last_merge_axon.axon.hotkey ]
+                else:
+                    weights[ last_merge_axon.axon.hotkey ] = loss.item()
             
             # Accumulate across batches.
             accumulation_counter += 1
