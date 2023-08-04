@@ -7,6 +7,7 @@ import random
 import asyncio
 import threading
 import argparse
+import traceback
 import torch.nn as nn
 import bittensor as bt
 from datasets import load_dataset
@@ -193,7 +194,8 @@ for epoch in range(3):
                     weights[ last_merge_axon.axon.hotkey ] = alpha * loss.item() + (1 - alpha) * weights[ last_merge_axon.axon.hotkey ]
                 else:
                     weights[ last_merge_axon.axon.hotkey ] = loss.item()
-            
+                bt.logging.info( f"Updated weights for {last_merge_axon.axon.hotkey} to {weights[ last_merge_axon.axon.hotkey ]}" )
+
             # Accumulate across batches.
             accumulation_counter += 1
             if accumulation_counter % config.accs_per_step == 0:
@@ -220,11 +222,14 @@ for epoch in range(3):
                 # Check if we need to sync based on blocks passed since last sync.
                 current_block = subtensor.block
                 if current_block - last_sync_block > config.blocks_per_reduce and not config.local:
+                    bt.logging.info( f"Reducing model at block {current_block}" )
                     # Perform the reduction
                     success, model, last_merge_axon = reduce.reduce(model, dendrite, metagraph)
                     last_sync_block = current_block
+                    bt.logging.info( f"Reduced with axon {last_merge_axon}" )
 
                 if current_block - last_set_weights > config.blocks_per_set_weights and not config.local:
+                    bt.logging.info( f"Setting weights on chain at block {current_block}" )
                     # Create weights tensor.
                     weights = torch.zeros_like( metagraph.uids )
                     for uid in metagraph.uids:
@@ -233,6 +238,7 @@ for epoch in range(3):
 
                     # Normalize weights across uids.
                     weights = torch.nn.functional.normalize( weights, p = 1.0, dim = 0, out = weights )
+                    bt.logging.info( f"weights: {weights}" )
 
                     # Set absolute weights
                     subtensor.set_weights( 
@@ -242,10 +248,13 @@ for epoch in range(3):
                         weights = weights
                     )
                     last_set_weights = current_block
+                    bt.logging.info( f"Set weights on chain at block {current_block}" )
 
 
         except RuntimeError as e:
             bt.logging.error(e)
+            traceback.print_exc()
+
         
         except KeyboardInterrupt:
             bt.logging.info("Keyboard interrupt detected. Saving model and exiting.")
