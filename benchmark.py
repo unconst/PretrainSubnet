@@ -17,7 +17,6 @@ def parse_arguments():
     parser.add_argument( '--netuid', type = int, default = 1, help = "The chain subnet uid." )
     parser.add_argument( '--n_head', type=int, default = 12, help = 'Model number of attention heads')
     parser.add_argument( '--n_layer', type=int, default = 12, help = 'Number of gpt2 model layers')
-    parser.add_argument( '--dataset', type=str, default = 'wikitext-2', choices=['wikitext-2'], help = 'Dataset to run benchmark on in [wikitext-2]')
     parser.add_argument( '--model', type=str, default = 'local', choices=['local', 'gpt2', 'gpt2-medium', 'gpt2-large', 'mock'], help = 'Dataset to run benchmark on.')
     bt.logging.add_args( parser )
     bt.wallet.add_args( parser )
@@ -69,12 +68,13 @@ model, tokenizer, device = load_model_and_tokenizer()
 pass
 
 
-# Load datasets
-datasets = {
-    'wikitext-2': load_dataset('wikitext', "wikitext-2-raw-v1", split="test"),
-}
+def calculate_wikitext_perplexity( model: torch.nn.Module, tokenizer, device: str ):
 
-def calculate_perplexity( text: str, model: torch.nn.Module, tokenizer, device: str ):
+    # Load the wiki test test.
+    dataset = load_dataset('wikitext', 'wikitext-2-raw-v1', 'test')
+    text = ''.join(dataset['test']['text'])
+
+    # Encode the text.
     encodings = tokenizer(text, return_tensors='pt')
     max_length = 512
     stride = max_length // 2
@@ -98,17 +98,8 @@ def calculate_perplexity( text: str, model: torch.nn.Module, tokenizer, device: 
     perplexity = torch.exp(torch.stack(lls).sum() / end_loc)
     return perplexity.item()
 
-# Load the wiki test test.
-if config.dataset == 'wikitext-2':
-    dataset = load_dataset('wikitext', 'wikitext-2-raw-v1', 'test')
-    text = ''.join(dataset['test']['text'])
-else:
-    dataset = load_dataset("togethercomputer/RedPajama-Data-1T", 'default', split='train', streaming=True)
-    text = ''
-    for _ in tqdm( range(10) ):
-        text += ''.join(next( iter(dataset) )['text'])
 
 # Run benchmark
 bt.logging.info(f'Running benchmark on {config.dataset}')
-perplexity = calculate_perplexity( test = text, model = model, tokenizer = tokenizer, device=device)
+perplexity = calculate_wikitext_perplexity( model = model, tokenizer = tokenizer, device=device)
 bt.logging.success(f'{config.dataset}: {perplexity.item()}')
