@@ -222,7 +222,7 @@ for epoch in range(3):
                     moving_average_scores[ last_merge_axon.hotkey ] = alpha * loss.item() + (1 - alpha) * moving_average_scores[ last_merge_axon.hotkey ]
                 else:
                     moving_average_scores[ last_merge_axon.hotkey ] = loss.item()
-                bt.logging.info( f"Updated weights for {last_merge_axon.hotkey} to {moving_average_scores[ last_merge_axon.hotkey ]}" )
+                bt.logging.trace( f"Updated weights for {last_merge_axon.hotkey} to {moving_average_scores[ last_merge_axon.hotkey ]}" )
 
             # Accumulate across batches.
             accumulation_counter += 1
@@ -249,7 +249,7 @@ for epoch in range(3):
 
                 # Check if our model has beaten the current best.
                 if loss < best_loss:
-                    bt.logging.success( f"New best loss: {loss}" )
+                    bt.logging.debug( f"New best loss: {loss}" )
                     # Save the model as the best we have.
                     save_model( model )
 
