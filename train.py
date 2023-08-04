@@ -189,11 +189,11 @@ for epoch in range(3):
 
             # Update weights for miner.
             if last_merge_axon:
-                if last_merge_axon.axon.hotkey in moving_average_scores:
-                    moving_average_scores[ last_merge_axon.axon.hotkey ] = alpha * loss.item() + (1 - alpha) * moving_average_scores[ last_merge_axon.axon.hotkey ]
+                if last_merge_axon.hotkey in moving_average_scores:
+                    moving_average_scores[ last_merge_axon.hotkey ] = alpha * loss.item() + (1 - alpha) * moving_average_scores[ last_merge_axon.hotkey ]
                 else:
-                    moving_average_scores[ last_merge_axon.axon.hotkey ] = loss.item()
-                bt.logging.info( f"Updated weights for {last_merge_axon.axon.hotkey} to {moving_average_scores[ last_merge_axon.axon.hotkey ]}" )
+                    moving_average_scores[ last_merge_axon.hotkey ] = loss.item()
+                bt.logging.info( f"Updated weights for {last_merge_axon.hotkey} to {moving_average_scores[ last_merge_axon.hotkey ]}" )
 
             # Accumulate across batches.
             accumulation_counter += 1
