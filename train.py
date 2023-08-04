@@ -149,7 +149,7 @@ if not config.local and not config.no_initial_sync:
     is_first = True
     while True:
         # Reduce model weights with random.
-        success, model, last_merge_axon = reduce.reduce( model, dendrite, metagraph, replace = True, allow_self = not is_first )
+        success, last_merge_axon = reduce.reduce( model, dendrite, metagraph, replace = True, allow_self = not is_first )
         if success:
             break
         else: 
