@@ -41,6 +41,7 @@ def parse_arguments():
     parser.add_argument( '--blocks_per_set_weights', type=int, default = 100, help = 'Number of blocks before we set weights.')
     parser.add_argument( '--num_warmup', type=int, default = 2000, help = 'Scheduler warm up steps.')
     parser.add_argument( '--netuid', type = int, default = 1, help = "The chain subnet uid." )
+    parser.add_argument( '--name', type = str, default = 'pretrain', help = "Name of run." )
     parser.add_argument( '--chain_endpoint', type = str, default = "wss://test.finney.opentensor.ai", help="The chain endpoint to connect with." )
     bt.subtensor.add_args( parser )
     bt.wallet.add_args( parser )
@@ -49,23 +50,22 @@ def parse_arguments():
     return bt.config( parser )
 
 config = parse_arguments()
-bt.logging( config = config )
-bt.logging.info( config )
-pass
 
 # Construct save directory.
-full_path = os.path.expanduser(
+config.full_path = os.path.expanduser(
     "{}/{}/{}/netuid{}/{}".format(
         config.logging.logging_dir,
         config.wallet.name,
         config.wallet.hotkey,
         config.netuid,
-        config.neuron.name,
+        config.name,
     )
 )
-config.full_path = os.path.expanduser(full_path)
 if not os.path.exists(config.full_path):
     os.makedirs(config.full_path, exist_ok=True)
+bt.logging( config = config, logging_dir = config.full_path )
+bt.logging.info( config )
+pass
 
 # Setup model and tokenizer
 def setup_model_and_tokenizer():
@@ -87,13 +87,16 @@ pass
 
 # Save + load model.
 def save_model( model ):
-    torch.save(model.state_dict(), config.full_path + 'model.pt')
+    bt.logging.info( f"saving model to {config.full_path}/model.pt" )
+    torch.save(model.state_dict(), config.full_path + '/model.pt')
 def load_model():
+    bt.logging.info( f"loading model from {config.full_path}/model.pt" )
     model, _, _ = setup_model_and_tokenizer()
-    model.load_state_dict(torch.load(config.full_path + 'model.pt'))
+    model.load_state_dict(torch.load(config.full_path + '/model.pt'))
     return model
-save_model()
+save_model( model )
 model = load_model().to(device).train()
+exit()
 
 # Load dataloader
 def load_dataloader():

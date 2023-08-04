@@ -1,3 +1,5 @@
+import os
+import sys
 import torch
 import argparse
 import bittensor as bt
@@ -10,13 +12,27 @@ from torch.nn import functional as F
 # Parse arguments
 def parse_arguments():
     parser = argparse.ArgumentParser()
+    parser.add_argument( '--name', type = str, default = 'pretrain', help = "Name of run." )
+    parser.add_argument( '--netuid', type = int, default = 1, help = "The chain subnet uid." )
+    parser.add_argument( '--n_head', type=int, default = 12, help = 'Model number of attention heads')
+    parser.add_argument( '--n_layer', type=int, default = 12, help = 'Number of gpt2 model layers')
     parser.add_argument( '--dataset', type=str, default = 'wikitext-2', choices=['wikitext-2'], help = 'Dataset to run benchmark on in [wikitext-2]')
-    parser.add_argument( '--model', type=str, default = 'gpt2', choices=['gpt2', 'gpt2-medium', 'gpt2-large', 'mock'], help = 'Dataset to run benchmark on.')
+    parser.add_argument( '--model', type=str, default = 'local', choices=['local', 'gpt2', 'gpt2-medium', 'gpt2-large', 'mock'], help = 'Dataset to run benchmark on.')
     bt.logging.add_args( parser )
+    bt.wallet.add_args( parser )
     return bt.config( parser )
 
 config = parse_arguments()
-bt.logging( config = config )
+config.full_path = os.path.expanduser(
+    "{}/{}/{}/netuid{}/{}".format(
+        config.logging.logging_dir,
+        config.wallet.name,
+        config.wallet.hotkey,
+        config.netuid,
+        config.name,
+    )
+)
+bt.logging( config = config, logging_dir = config.full_path )
 bt.logging.info( config )
 pass
 
@@ -24,7 +40,12 @@ pass
 def load_model_and_tokenizer():
     # Load pre-trained model and tokenizer
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    if config.model == 'gpt2':
+    if config.model == 'local':
+        tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
+        tokenizer.pad_token = tokenizer.eos_token
+        model = GPT2LMHeadModel(GPT2Config(n_layer = config.n_layer, n_head = config.n_head))
+        model.load_state_dict(torch.load(config.full_path + '/model.pt'))
+    elif config.model == 'gpt2':
         tokenizer = GPT2Tokenizer.from_pretrained(config.model)
         model = GPT2LMHeadModel.from_pretrained(config.model) 
     elif config.model == 'gpt2-medium':
