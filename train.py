@@ -49,6 +49,8 @@ def parse_arguments():
     parser.add_argument( '--netuid', type = int, default = 1, help = "The chain subnet uid." )
     parser.add_argument( '--name', type = str, default = 'pretrain', help = "Name of run." )
     parser.add_argument( '--chain_endpoint', type = str, default = "wss://test.finney.opentensor.ai", help="The chain endpoint to connect with." )
+    parser.add_argument( '--loader_script_path', type = str, default = "load_redpajama_random.py", help="Path to dataloader custom script." )
+
     bt.subtensor.add_args( parser )
     bt.wallet.add_args( parser )
     bt.axon.add_args( parser )
@@ -108,12 +110,18 @@ if config.load:
 
 # Load the dataloader
 bt.logging.info( "setting up dataloader" )
-dataloader = dataset.get_next_dataloader(
+dataloader, ds = dataset.get_next_dataloader(
+    load_script_path=config.loader_script_path,
     tokenizer = tokenizer,
     batch_size = config.bs,
     sequence_length = config.sl,
     mock = config.mock,
+    return_dataset=True
 )
+
+# Log dataset info
+for k,v in ds._info.download_checksums.items():
+    bt.logging.info( f"Loaded data info: {k} {v['num_bytes']} B" )
 pass
 
 # Get optimized and scheduler
