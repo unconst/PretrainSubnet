@@ -3,7 +3,8 @@ import torch
 import random
 import requests
 from tqdm import tqdm
-from datasets import load_dataset, BatchEncoding
+from datasets import load_dataset
+from transformers import BatchEncoding
 from urllib.parse import urlparse
 from torch.utils.data import DataLoader, Dataset, IterableDataset
 from transformers import AutoTokenizer
@@ -18,14 +19,37 @@ def get_next_dataloader(
     mock=False,
     return_dataset=False,
 ):
+    if isinstance(tokenizer, str):
+        tokenizer = AutoTokenizer.from_pretrained(tokenizer)
+        tokenizer.pad_token = tokenizer.eos_token
+
     if mock:
+        # Create the tokenize function to truncate and pad the texts
         def tokenize_function(examples):
-            return tokenizer(examples["text"], truncation = True, padding = "max_length", max_length = sequence_length, return_tensors = "pt")
+            return tokenizer(examples["text"], truncation=True, padding="max_length", max_length=sequence_length, return_tensors="pt")
+
         # Load the mock loader.
-        texts = ["mock sentence "+str(i) for i in range(100)]  # creating 100 mock sentences
+        texts = ["mock sentence " + str(i) for i in range(100)]  # creating 100 mock sentences
         encoded_texts = [tokenize_function({"text": txt}) for txt in texts]
-        dataloader = DataLoader(encoded_texts, batch_size = batch_size)
+
+        encoded_data = [{"input_ids": item["input_ids"][0], "attention_mask": item["attention_mask"][0]} for item in encoded_texts]
+
+        # Determine the number of padding examples needed for the last batch
+        padding_count = (batch_size - len(encoded_data) % batch_size) % batch_size
+
+        # Create the padding examples
+        padding_example = {
+            "input_ids": torch.tensor([tokenizer.pad_token_id] * sequence_length),
+            "attention_mask": torch.tensor([0] * sequence_length),
+        }
+
+        # Append the padding examples to the encoded data
+        encoded_data.extend([padding_example] * padding_count)
+
+        # Create a dataset and a DataLoader for batching
+        dataloader = DataLoader(encoded_data, batch_size=batch_size, shuffle=False)
         return dataloader
+
 
     def _tokenize_data(data, tokenizer, max_seq_length=512, batch_size=32):
         # Buffer to temporarily hold the tokenized data until a full batch is ready
@@ -46,13 +70,13 @@ def get_next_dataloader(
             # Lists to store split tokenized text and attention masks
             ids_list = []
             attention_list = []
-            
+
             # Split the tokenized text and attention masks into segments of length `max_seq_length`
             for i in range(0, len(input_ids), max_seq_length):
                 end = min(i + max_seq_length, len(input_ids))
                 ids = input_ids[i:end]
                 attention_mask = attention[i:end]
-                
+
                 # If a segment is shorter than `max_seq_length`, pad it
                 if len(ids) < max_seq_length:
                     ids += [tokenizer.pad_token_id] * (max_seq_length - len(ids))
@@ -63,7 +87,7 @@ def get_next_dataloader(
             # Add tokenized segments to the buffer
             for ids, attention_mask in zip(ids_list, attention_list):
                 buffer.append({'input_ids': ids, 'attention_mask': attention_mask})
-                
+
                 # When the buffer reaches the batch size, convert to tensors and yield as a batch
                 if len(buffer) == batch_size:
                     input_ids_tensor = torch.tensor([item['input_ids'] for item in buffer])
@@ -99,3 +123,46 @@ def get_next_dataloader(
         return tokenized_data_generator, dataset
 
     return tokenized_data_generator
+
+
+
+import unittest
+from transformers import AutoTokenizer
+
+class TestGetNextDataloader(unittest.TestCase):
+
+    def test_mock_dataloader(self):
+        # Test with the mock option enabled
+        dataloader = get_next_dataloader(mock=True, batch_size=3, sequence_length=20)
+        for batch in dataloader:
+            # import pdb; pdb.set_trace()
+            print("batch:", batch['input_ids'].shape)
+            self.assertEqual(batch["input_ids"].shape[0], 3)  # Checking batch size
+            self.assertEqual(batch["input_ids"].shape[1], 20)  # Checking sequence length
+
+    def test_tokenization_with_mock_data(self):
+        # Test the tokenization process with mock data
+        tokenizer = AutoTokenizer.from_pretrained("gpt2")
+        tokenizer.pad_token = tokenizer.eos_token
+        load_script_path = "load_script_mock.py"  # Path to your mock load script
+        dataloader = get_next_dataloader(mock=True, tokenizer=tokenizer, split="train", batch_size=2, sequence_length=20)
+        for batch in dataloader:
+            self.assertEqual(batch["input_ids"].shape[0], 2)  # Checking batch size
+            self.assertEqual(batch["input_ids"].shape[1], 20)  # Checking sequence length
+            break
+
+    def test_padding_last_batch_with_mock_data(self):
+        # Test that the last batch is properly padded with mock data
+        load_script_path = "load_script_mock.py"  # Path to your mock load script
+        dataloader = get_next_dataloader(mock=True, split="train", batch_size=5, sequence_length=10)
+        last_batch = None
+        for batch in dataloader:
+            last_batch = batch
+
+        # Assuming the last batch may not be full, checking padding
+        self.assertEqual(last_batch["input_ids"].shape[0], 5)  # Checking batch size
+        self.assertEqual(last_batch["input_ids"].shape[1], 10)  # Checking sequence length
+
+# If you want to run the tests:
+if __name__ == '__main__':
+    unittest.main()
