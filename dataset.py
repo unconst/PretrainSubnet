@@ -3,7 +3,7 @@ import torch
 import random
 import requests
 from tqdm import tqdm
-from datasets import load_dataset
+from datasets import load_dataset, BatchEncoding
 from urllib.parse import urlparse
 from torch.utils.data import DataLoader, Dataset, IterableDataset
 from transformers import AutoTokenizer
