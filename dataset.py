@@ -51,7 +51,7 @@ def _tokenize_data(data, tokenizer, max_seq_length=512, batch_size=32):
             if len(buffer) == batch_size:
                 input_ids_tensor = torch.tensor([item['input_ids'] for item in buffer])
                 attention_mask_tensor = torch.tensor([item['attention_mask'] for item in buffer])
-                yield BatchEncoding({'input_ids': input_ids_tensor, 'attention_mask': attention_mask_tensor})
+                yield {'input_ids': input_ids_tensor, 'attention_mask': attention_mask_tensor}
                 buffer = [] # Clear buffer for the next batch
 
     # Handle any remaining items in the buffer
@@ -64,7 +64,7 @@ def _tokenize_data(data, tokenizer, max_seq_length=512, batch_size=32):
         # Convert the buffer to tensors and yield as a batch
         input_ids_tensor = torch.tensor([item['input_ids'] for item in buffer])
         attention_mask_tensor = torch.tensor([item['attention_mask'] for item in buffer])
-        yield BatchEncoding({'input_ids': input_ids_tensor, 'attention_mask': attention_mask_tensor})
+        yield {'input_ids': input_ids_tensor, 'attention_mask': attention_mask_tensor}
 
 
 def get_next_dataloader(
