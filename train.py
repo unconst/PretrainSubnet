@@ -43,6 +43,7 @@ def parse_arguments():
     parser.add_argument( '--steps_per_log', type=int, default = 1, help = 'Number of steps per log.')
     parser.add_argument( '--steps_per_sync', type=int, default = 100, help = 'Number of steps per chain sync.')
     parser.add_argument( '--steps_per_eval', type=int, default = 300, help = 'Number of steps per eval.')
+    parser.add_argument( '--steps_per_new_dataset', type=int, default = 600, help = 'Number of steps before pulling a new dataset item.')
     parser.add_argument( '--blocks_per_reduce', type=int, default = 22, help = 'Number of steps reduce.')
     parser.add_argument( '--blocks_per_set_weights', type=int, default = 100, help = 'Number of blocks before we set weights.')
     parser.add_argument( '--num_warmup', type=int, default = 2000, help = 'Scheduler warm up steps.')
@@ -294,6 +295,20 @@ for epoch in range(3):
                     last_set_weights = current_block
                     bt.logging.info( f"Set weights on chain at block {current_block}" )
 
+                # Pull a new dataset.
+                if step % config.steps_per_new_dataset == 0:
+                    bt.logging.info(f'Pulling new dataset')
+                    dataloader, ds = dataset.get_next_dataloader(
+                        load_script_path = config.loader_script_path,
+                        tokenizer = tokenizer,
+                        batch_size = config.bs,
+                        sequence_length = config.sl,
+                        mock = config.mock,
+                        return_dataset = True
+                    )
+                    for k,v in ds._info.download_checksums.items():
+                        bt.logging.info( f"Loaded data info: {k} {v['num_bytes']} B" )
+                    pass
 
                 # Run eval online.
                 if step % config.steps_per_eval == 0:
