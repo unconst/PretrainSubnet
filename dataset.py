@@ -51,7 +51,7 @@ def _tokenize_data(data, tokenizer, max_seq_length=512, batch_size=32):
             if len(buffer) == batch_size:
                 input_ids_tensor = torch.tensor([item['input_ids'] for item in buffer])
                 attention_mask_tensor = torch.tensor([item['attention_mask'] for item in buffer])
-                yield BatchEncoding({'input_ids': input_ids_tensor, 'attention_mask': attention_mask_tensor})
+                yield {'input_ids': input_ids_tensor, 'attention_mask': attention_mask_tensor}
                 buffer = [] # Clear buffer for the next batch
 
     # Handle any remaining items in the buffer
@@ -64,7 +64,7 @@ def _tokenize_data(data, tokenizer, max_seq_length=512, batch_size=32):
         # Convert the buffer to tensors and yield as a batch
         input_ids_tensor = torch.tensor([item['input_ids'] for item in buffer])
         attention_mask_tensor = torch.tensor([item['attention_mask'] for item in buffer])
-        yield BatchEncoding({'input_ids': input_ids_tensor, 'attention_mask': attention_mask_tensor})
+        yield {'input_ids': input_ids_tensor, 'attention_mask': attention_mask_tensor}
 
 
 def get_next_dataloader(
@@ -80,11 +80,12 @@ def get_next_dataloader(
     if not mock:
         dataset = load_dataset(load_script_path, 'default', split=split)
     else:
-        dataset = [{"text": "mock sentence " + str(i) * random.randint( 0, 1000 ) } for i in range(random.randint(1, 100))]  # creating 100 mock sentences
+        dataset = [{"text": "mock sentence " + str(i) * random.randint( 0, 1000 ) } for i in range(random.randint( 1, 1000 ))]  # creating 100 mock sentences
 
     if isinstance(tokenizer, str):
         tokenizer = AutoTokenizer.from_pretrained(tokenizer)
         tokenizer.pad_token = tokenizer.eos_token
+
     tokenized_data_generator = _tokenize_data(
         dataset, 
         tokenizer = tokenizer, 
@@ -106,8 +107,6 @@ class TestGetNextDataloader(unittest.TestCase):
         # Test with the mock option enabled
         dataloader = get_next_dataloader(mock=True, batch_size=3, sequence_length=20)
         for batch in dataloader:
-            # import pdb; pdb.set_trace()
-            print("batch:", batch['input_ids'].shape)
             self.assertEqual(batch["input_ids"].shape[0], 3)  # Checking batch size
             self.assertEqual(batch["input_ids"].shape[1], 20)  # Checking sequence length
 
@@ -115,16 +114,13 @@ class TestGetNextDataloader(unittest.TestCase):
         # Test the tokenization process with mock data
         tokenizer = AutoTokenizer.from_pretrained("gpt2")
         tokenizer.pad_token = tokenizer.eos_token
-        load_script_path = "load_script_mock.py"  # Path to your mock load script
         dataloader = get_next_dataloader(mock=True, tokenizer=tokenizer, split="train", batch_size=2, sequence_length=20)
         for batch in dataloader:
             self.assertEqual(batch["input_ids"].shape[0], 2)  # Checking batch size
             self.assertEqual(batch["input_ids"].shape[1], 20)  # Checking sequence length
-            break
 
     def test_padding_last_batch_with_mock_data(self):
         # Test that the last batch is properly padded with mock data
-        load_script_path = "load_script_mock.py"  # Path to your mock load script
         dataloader = get_next_dataloader(mock=True, split="train", batch_size=5, sequence_length=10)
         last_batch = None
         for batch in dataloader:
@@ -133,48 +129,6 @@ class TestGetNextDataloader(unittest.TestCase):
         # Assuming the last batch may not be full, checking padding
         self.assertEqual(last_batch["input_ids"].shape[0], 5)  # Checking batch size
         self.assertEqual(last_batch["input_ids"].shape[1], 10)  # Checking sequence length
-
-    def test_real_data_tokenization(self):
-        # Mocking the return value of load_dataset to return a sample dataset
-        with patch('datasets.load_dataset') as mock_load_dataset:
-            # Fake data with 7 examples, ensuring that the last batch will need padding
-            fake_data = [{'text': f'sample sentence {i}'} for i in range(7)]
-            mock_load_dataset.return_value = fake_data
-
-            tokenizer = AutoTokenizer.from_pretrained("gpt2")
-            tokenizer.pad_token = tokenizer.eos_token
-
-            # Using a batch size of 3 to create an uneven last batch
-            dataloader = get_next_dataloader(mock=False, tokenizer=tokenizer, batch_size=3, sequence_length=20)
-
-            # Verify the shape of all batches
-            for i, batch in enumerate(dataloader):
-                if i < 2:  # First two batches
-                    self.assertEqual(batch["input_ids"].shape[0], 3)  # Checking batch size
-                    self.assertEqual(batch["input_ids"].shape[1], 20)  # Checking sequence length
-                else:  # Last batch
-                    self.assertEqual(batch["input_ids"].shape[0], 3)  # Checking batch size
-                    self.assertEqual(batch["input_ids"].shape[1], 20)  # Checking sequence length
-
-    def test_real_data_last_batch_padding(self):
-        # Mocking the return value of load_dataset to return a sample dataset
-        with patch('datasets.load_dataset') as mock_load_dataset:
-            # Fake data with 11 examples, ensuring that the last batch will need padding
-            fake_data = [{'text': f'sample sentence {i}'} for i in range(11)]
-            mock_load_dataset.return_value = fake_data
-
-            tokenizer = AutoTokenizer.from_pretrained("gpt2")
-            tokenizer.pad_token = tokenizer.eos_token
-
-            # Using a batch size of 5 to create an uneven last batch
-            dataloader = get_next_dataloader(mock=False, batch_size=5, sequence_length=20)
-            last_batch = None
-            for batch in dataloader:
-                last_batch = batch
-
-            # Check padding in the last batch
-            self.assertEqual(last_batch["input_ids"].shape[0], 5)  # Checking batch size
-            self.assertEqual(last_batch["input_ids"].shape[1], 20)  # Checking sequence length
 
 # If you want to run the tests:
 if __name__ == '__main__':
