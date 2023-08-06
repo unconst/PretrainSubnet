@@ -205,7 +205,7 @@ axon.attach( get_params ).start()
 # Training vars.
 step = 0 # Global step.
 alpha = 0.9 # Moving average coefficient for weights.
-best_loss = math.inf # Best loss seen so far.
+best_eval = math.inf # Best loss seen so far.
 accumulation_counter = 0 # Counter for gradient accumulation.
 moving_average_scores = {} # Map from hotkey to loss.
 
@@ -255,13 +255,6 @@ for epoch in range(3):
 
                 # Increment step.
                 step += 1
-
-                # Check if our model has beaten the current best.
-                if loss < best_loss:
-                    bt.logging.debug( f"New best loss: {loss}" )
-                    # Save the model as the best we have.
-                    save_model( model )
-                    best_loss = loss
 
                 # Check if we need to sync based on blocks passed since last sync.
                 current_block = subtensor.block
@@ -316,6 +309,9 @@ for epoch in range(3):
                     eval_perplexity = benchmark.calculate_wikitext_perplexity( model, tokenizer, device, config.sl )
                     bt.logging.success(f'Eval perplexity: {eval_perplexity}')
                     if config.wandb: wandb.log( {'eval_perplexity': eval_perplexity } )
+                    if eval_perplexity < best_eval:
+                        best_eval = eval_perplexity
+                        save_model( model )
 
 
         # Catch unknown errors.
