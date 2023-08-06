@@ -145,7 +145,7 @@ class TestGetNextDataloader(unittest.TestCase):
             tokenizer.pad_token = tokenizer.eos_token
 
             # Using a batch size of 3 to create an uneven last batch
-            dataloader = get_next_dataloader(mock=True, tokenizer=tokenizer, batch_size=3, sequence_length=20)
+            dataloader = get_next_dataloader(mock=False, tokenizer=tokenizer, batch_size=3, sequence_length=20)
 
             # Verify the shape of all batches
             for i, batch in enumerate(dataloader):
@@ -167,7 +167,7 @@ class TestGetNextDataloader(unittest.TestCase):
             tokenizer.pad_token = tokenizer.eos_token
 
             # Using a batch size of 5 to create an uneven last batch
-            dataloader = get_next_dataloader(mock=True, batch_size=5, sequence_length=20)
+            dataloader = get_next_dataloader(mock=False, batch_size=5, sequence_length=20)
             last_batch = None
             for batch in dataloader:
                 last_batch = batch
