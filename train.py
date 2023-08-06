@@ -314,8 +314,8 @@ for epoch in range(3):
                 if step % config.steps_per_eval == 0:
                     bt.logging.info(f'Running eval')
                     eval_perplexity = benchmark.calculate_wikitext_perplexity( model, tokenizer, device, config.sl )
-                    bt.logging.success(f'Eval perplexity: {eval_perplexity.item()}')
-                    if config.wandb: wandb.log( {'eval_perplexity': eval_perplexity.item() } )
+                    bt.logging.success(f'Eval perplexity: {eval_perplexity}')
+                    if config.wandb: wandb.log( {'eval_perplexity': eval_perplexity } )
 
 
         # Catch unknown errors.
