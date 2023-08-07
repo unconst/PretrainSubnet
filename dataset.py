@@ -60,6 +60,7 @@ def load_new_files() -> typing.Tuple[int, str]:
     encrypted_path = os.path.expanduser( DATA_DIR + '/' + urlparse(file).path[1:] )
     os.makedirs(os.path.dirname(encrypted_path), exist_ok=True) 
 
+    print(encrypted_path)
     # Download data.
     r = requests.get(file, stream=True)
     with open(encrypted_path, 'wb') as f:
@@ -68,6 +69,7 @@ def load_new_files() -> typing.Tuple[int, str]:
     
     # Define the input and output file paths
     decrypted_path = encrypted_path.rsplit('.', 1)[0]  # Removes the last extension (.zst)
+    print(decrypted_path)
 
     # Open the input file for reading and the output file for writing
     with zstd.open(open(encrypted_path, "rb"), "rt", encoding="utf-8") as f, open(decrypted_path, 'w', encoding="utf-8") as outfile:
