@@ -57,17 +57,16 @@ def load_new_files() -> typing.Tuple[int, str]:
     # Create download folder.
     index = random.choice(range(len(all_urls)))
     file = all_urls[index]
-    dload_loc = DATA_DIR + '/' + urlparse(file).path[1:]
-    os.makedirs(os.path.dirname(dload_loc), exist_ok=True) 
+    encrypted_path = os.path.expanduser( DATA_DIR + '/' + urlparse(file).path[1:] )
+    os.makedirs(os.path.dirname(encrypted_path), exist_ok=True) 
 
     # Download data.
     r = requests.get(file, stream=True)
-    with open(dload_loc, 'wb') as f:
+    with open(encrypted_path, 'wb') as f:
         for chunk in tqdm(r.iter_content(1024)):
             f.write(chunk)
     
     # Define the input and output file paths
-    encrypted_path = os.path.expanduser( dload_loc )
     decrypted_path = encrypted_path.rsplit('.', 1)[0]  # Removes the last extension (.zst)
 
     # Open the input file for reading and the output file for writing
