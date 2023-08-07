@@ -15,6 +15,7 @@ from transformers import AutoTokenizer
 
 DATA_URL = 'https://data.together.xyz/redpajama-data-1T/v1.0.0/urls.txt'
 DATA_DIR = "~/.cache/huggingface/datasets"
+DATA_FILE_DIR = None
 
 def get_next_dataloader(
     tokenizer="gpt2",
@@ -89,16 +90,7 @@ def load_new_files(file: str = None, delete_cache: bool = True) -> typing.Tuple[
         - str: Path to the downloaded (and possibly decrypted) file.
 
     """
-    
-    # If instructed, delete the cache directory
-    if delete_cache:
-        try:
-            shutil.rmtree(os.path.expanduser(DATA_DIR))
-        except Exception as e:
-            pass
-    
-    # Ensure the base data directory exists
-    os.makedirs(os.path.dirname(DATA_DIR), exist_ok=True)
+    global DATA_FILE_DIR
 
     # Fetch the list of available data URLs
     response = requests.get(DATA_URL)
@@ -111,8 +103,24 @@ def load_new_files(file: str = None, delete_cache: bool = True) -> typing.Tuple[
         index = random.choice(range(len(all_urls)))
         file = all_urls[index]
 
+    # Create a unique subdirectory for the file based on the index
+    temp_subdir = os.path.expanduser(os.path.join(DATA_DIR, f"temp_subdir_{index}"))
+
+    # If instructed, delete the previous subdirectory cache
+    if delete_cache and DATA_FILE_DIR != None:
+        try:
+            shutil.rmtree(DATA_FILE_DIR)
+        except Exception as e:
+            pass
+
+    # Update the global DATA_FILE_DIR variable
+    DATA_FILE_DIR = temp_subdir
+
+    # Ensure the base data directory and subdirectory exist
+    os.makedirs(DATA_FILE_DIR, exist_ok=True)
+
     # Determine the save path for the downloaded data
-    encrypted_path = os.path.expanduser(DATA_DIR + '/' + urlparse(file).path[1:])
+    encrypted_path = os.path.join(temp_subdir, os.path.basename(urlparse(file).path))
     os.makedirs(os.path.dirname(encrypted_path), exist_ok=True)
 
     # Download the selected file in chunks, showing progress with tqdm
