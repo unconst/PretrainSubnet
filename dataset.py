@@ -1,14 +1,74 @@
 import os
+import typing
 import torch
+import shutil
 import random
 import requests
 from tqdm import tqdm
 from unittest.mock import patch
 from datasets import load_dataset
 from urllib.parse import urlparse
-from torch.utils.data import DataLoader, Dataset, IterableDataset
 from transformers import AutoTokenizer
 
+DATA_URL = 'https://data.together.xyz/redpajama-data-1T/v1.0.0/urls.txt'
+DATA_DIR = "~/.cache/huggingface/datasets"
+
+def get_next_dataloader(
+    k: int = 1,
+    tokenizer = "gpt2",
+    batch_size=1,
+    sequence_length=1024,
+    mock=False,
+    shuffle_seed=42,
+    return_dataset=False,
+):
+    paths = load_new_files( k )
+    if not mock:
+        dataset = load_dataset('json', data_files = paths)
+        dataset = dataset.shuffle( shuffle_seed )
+    else:
+        dataset = [{"text": "mock sentence " + str(i) * random.randint( 0, 1000 ) } for i in range(random.randint( 1, 1000 ))]  # creating 100 mock sentences
+
+    if isinstance(tokenizer, str):
+        tokenizer = AutoTokenizer.from_pretrained(tokenizer)
+        tokenizer.pad_token = tokenizer.eos_token
+
+    tokenized_data_generator = _tokenize_data(
+        dataset, 
+        tokenizer = tokenizer, 
+        max_seq_length = sequence_length,
+        batch_size = batch_size
+    )
+    if return_dataset:
+        return tokenized_data_generator, dataset
+    
+    return tokenized_data_generator
+
+
+def load_new_files(k:int) -> typing.List[str]:
+    paths = []
+    shutil.rmtree(os.path.expanduser(DATA_DIR))
+    for _ in tqdm( range(k) ):
+        # Get all URLS.
+        response = requests.get(DATA_URL)
+        all_urls = response.content.decode('utf-8').split('\n')
+
+        # Create download folder.
+        file = random.choice(all_urls)
+        dload_loc = DATA_DIR + '/' + urlparse(file).path[1:]
+        os.makedirs(os.path.dirname(dload_loc), exist_ok=True) 
+
+        # Download data.
+        r = requests.get(file, stream=True)
+        with open(dload_loc, 'wb') as f:
+            for chunk in tqdm(r.iter_content(1024)):
+                f.write(chunk)
+
+        # Load dataset.
+        paths.append( os.path.expanduser( dload_loc ))
+
+    return paths
+    
 def _tokenize_data(data, tokenizer, max_seq_length=512, batch_size=32):
     # Buffer to temporarily hold the tokenized data until a full batch is ready
     buffer = []
@@ -65,39 +125,6 @@ def _tokenize_data(data, tokenizer, max_seq_length=512, batch_size=32):
         attention_mask_tensor = torch.tensor([item['attention_mask'] for item in buffer])
         yield {'input_ids': input_ids_tensor, 'attention_mask': attention_mask_tensor}
 
-
-def get_next_dataloader(
-    cache_dir="~/.cache/huggingface/datasets",
-    tokenizer="gpt2",
-    load_script_path="load_redpajama_random.py",
-    split='train',
-    batch_size=1,
-    sequence_length=1024,
-    mock=False,
-    shuffle_seed=42,
-    return_dataset=False,
-):
-
-    if not mock:
-        dataset = load_dataset(load_script_path, name='default', cache_dir=cache_dir, split=split)
-        dataset = dataset.shuffle(shuffle_seed)
-    else:
-        dataset = [{"text": "mock sentence " + str(i) * random.randint( 0, 1000 ) } for i in range(random.randint( 1, 1000 ))]  # creating 100 mock sentences
-
-    if isinstance(tokenizer, str):
-        tokenizer = AutoTokenizer.from_pretrained(tokenizer)
-        tokenizer.pad_token = tokenizer.eos_token
-
-    tokenized_data_generator = _tokenize_data(
-        dataset, 
-        tokenizer = tokenizer, 
-        max_seq_length = sequence_length,
-        batch_size = batch_size
-    )
-    if return_dataset:
-        return tokenized_data_generator, dataset
-    
-    return tokenized_data_generator
 
 
 import unittest
