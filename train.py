@@ -5,6 +5,7 @@ import math
 import torch
 import wandb
 import random
+import shutil
 import asyncio
 import threading
 import argparse
@@ -40,6 +41,7 @@ def parse_arguments():
     parser.add_argument( '--max_k', type=int, default = 1, help = 'Max number of gradients to merge.')
     parser.add_argument( '--max_steps', type=int, default = 50000, help = 'Max training steps.')
     parser.add_argument( '--accs_per_step', type=int, default = 5, help = 'Number of training accumulation steps.')
+    parser.add_argument( '--epochs', type=int, default = 3, help = 'Number of training epochs.')
     parser.add_argument( '--steps_per_log', type=int, default = 1, help = 'Number of steps per log.')
     parser.add_argument( '--steps_per_sync', type=int, default = 100, help = 'Number of steps per chain sync.')
     parser.add_argument( '--steps_per_eval', type=int, default = 300, help = 'Number of steps per eval.')
@@ -110,14 +112,17 @@ if config.load:
     model = load_model().to(device).train()
 
 # Load the dataloader
+config.data_cache_dir = os.path.join( config.full_path, 'dataset_cache' )
 bt.logging.info( "setting up dataloader" )
+bt.logging.info( f"saving dataset to {config.data_cache_dir}")
 dataloader, ds = dataset.get_next_dataloader(
-    load_script_path=config.loader_script_path,
+    cache_dir = config.data_cache_dir,
+    load_script_path = config.loader_script_path,
     tokenizer = tokenizer,
     batch_size = config.bs,
     sequence_length = config.sl,
     mock = config.mock,
-    return_dataset=True
+    return_dataset = True
 )
 
 # Log dataset info
@@ -210,8 +215,8 @@ accumulation_counter = 0 # Counter for gradient accumulation.
 moving_average_scores = {} # Map from hotkey to loss.
 
 # Main training loop.
-for epoch in range(3):
-    bt.logging.info( f'Epoch {epoch + 1}/{3}' )
+for epoch in range(config.epochs):
+    bt.logging.info( f'Epoch {epoch + 1}/{config.epochs}' )
     for batch in dataloader:
         try:
             # Forward pass.
@@ -290,6 +295,9 @@ for epoch in range(3):
 
                 # Pull a new dataset.
                 if step % config.steps_per_new_dataset == 0:
+                    bt.logging.info(f'Removing cache dir: {config.dataset_cache_dir}')
+                    shutil.rmtree(os.path.expanduser(config.dataset_cache_dir))
+
                     bt.logging.info(f'Pulling new dataset')
                     dataloader, ds = dataset.get_next_dataloader(
                         load_script_path = config.loader_script_path,

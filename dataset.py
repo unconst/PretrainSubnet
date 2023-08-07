@@ -5,7 +5,6 @@ import requests
 from tqdm import tqdm
 from unittest.mock import patch
 from datasets import load_dataset
-from transformers import BatchEncoding
 from urllib.parse import urlparse
 from torch.utils.data import DataLoader, Dataset, IterableDataset
 from transformers import AutoTokenizer
@@ -68,6 +67,7 @@ def _tokenize_data(data, tokenizer, max_seq_length=512, batch_size=32):
 
 
 def get_next_dataloader(
+    cache_dir="~/.cache/huggingface/datasets",
     tokenizer="gpt2",
     load_script_path="load_redpajama_random.py",
     split='train',
@@ -78,7 +78,7 @@ def get_next_dataloader(
 ):
 
     if not mock:
-        dataset = load_dataset(load_script_path, 'default', split=split)
+        dataset = load_dataset(load_script_path, name='default', cache_dir=cache_dir, split=split)
     else:
         dataset = [{"text": "mock sentence " + str(i) * random.randint( 0, 1000 ) } for i in range(random.randint( 1, 1000 ))]  # creating 100 mock sentences
 
