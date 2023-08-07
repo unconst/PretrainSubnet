@@ -249,7 +249,7 @@ for epoch in range(config.epochs):
                     success, last_merge_axon = reduce.reduce(model, dendrite, metagraph)
                     last_sync_block = current_block
                     bt.logging.info( f"Reduced with axon {last_merge_axon}" )
-                    if config.wandb: wandb.log( {'reduce': last_merge_axon.uid } )
+                    if config.wandb: wandb.log( {'reduce': metagraph.hotkeys.index( last_merge_axon.hotkey ) } )
 
                 # Check if we should set weights after this point.
                 if step % config.steps_per_set_weights == 0 and not config.local:
