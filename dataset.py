@@ -74,11 +74,13 @@ def get_next_dataloader(
     batch_size=1,
     sequence_length=1024,
     mock=False,
+    shuffle_seed=42,
     return_dataset=False,
 ):
 
     if not mock:
         dataset = load_dataset(load_script_path, name='default', cache_dir=cache_dir, split=split)
+        dataset = dataset.shuffle(shuffle_seed)
     else:
         dataset = [{"text": "mock sentence " + str(i) * random.randint( 0, 1000 ) } for i in range(random.randint( 1, 1000 ))]  # creating 100 mock sentences
 

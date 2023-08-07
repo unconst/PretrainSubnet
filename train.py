@@ -7,6 +7,7 @@ import wandb
 import random
 import shutil
 import asyncio
+import tempfile
 import threading
 import argparse
 import traceback
@@ -45,7 +46,7 @@ def parse_arguments():
     parser.add_argument( '--steps_per_log', type=int, default = 1, help = 'Number of steps per log.')
     parser.add_argument( '--steps_per_sync', type=int, default = 100, help = 'Number of steps per chain sync.')
     parser.add_argument( '--steps_per_eval', type=int, default = 300, help = 'Number of steps per eval.')
-    parser.add_argument( '--steps_per_new_dataset', type=int, default = 600, help = 'Number of steps before pulling a new dataset item.')
+    parser.add_argument( '--steps_per_new_dataset', type=int, default = 60, help = 'Number of steps before pulling a new dataset item.')
     parser.add_argument( '--blocks_per_reduce', type=int, default = 22, help = 'Number of steps reduce.')
     parser.add_argument( '--blocks_per_set_weights', type=int, default = 100, help = 'Number of blocks before we set weights.')
     parser.add_argument( '--num_warmup', type=int, default = 2000, help = 'Scheduler warm up steps.')
@@ -53,6 +54,7 @@ def parse_arguments():
     parser.add_argument( '--name', type = str, default = 'pretrain', help = "Name of run." )
     parser.add_argument( '--chain_endpoint', type = str, default = "wss://test.finney.opentensor.ai", help="The chain endpoint to connect with." )
     parser.add_argument( '--loader_script_path', type = str, default = "load_redpajama_random.py", help="Path to dataloader custom script." )
+    parser.add_argument( '--shuffle_seed', type = int, default = 1337, help="Seed for shuffling dataset." )
 
     bt.subtensor.add_args( parser )
     bt.wallet.add_args( parser )
@@ -111,23 +113,25 @@ def load_model():
 if config.load:
     model = load_model().to(device).train()
 
-# Load the dataloader
-config.data_cache_dir = os.path.join( config.full_path, 'dataset_cache' )
+# Load the dataloader.
 bt.logging.info( "setting up dataloader" )
-bt.logging.info( f"saving dataset to {config.data_cache_dir}")
+config.dataset_cache_dir = tempfile.mkdtemp( prefix='dataset_cache_', dir=config.full_path )
 dataloader, ds = dataset.get_next_dataloader(
-    cache_dir = config.data_cache_dir,
+    cache_dir = config.dataset_cache_dir,
     load_script_path = config.loader_script_path,
     tokenizer = tokenizer,
     batch_size = config.bs,
     sequence_length = config.sl,
     mock = config.mock,
+    shuffle_seed = config.shuffle_seed,
     return_dataset = True
 )
 
-# Log dataset info
-for k,v in ds._info.download_checksums.items():
-    bt.logging.info( f"Loaded data info: {k} {v['num_bytes']} B" )
+# Log the dataset info.
+url, size = next(reversed(ds._info.download_checksums.items()))
+bt.logging.info( f"Loaded data from: {url}" )
+bt.logging.info( f"Loaded data size: {size.get('num_bytes', -1)} B" )
+bt.logging.info( f"Dataset saved to {config.dataset_cache_dir}")
 pass
 
 # Get optimized and scheduler
@@ -299,17 +303,20 @@ for epoch in range(config.epochs):
                     shutil.rmtree(os.path.expanduser(config.dataset_cache_dir))
 
                     bt.logging.info(f'Pulling new dataset')
+                    config.dataset_cache_dir = tempfile.mkdtemp( prefix='dataset_cache_', dir=config.full_path )
                     dataloader, ds = dataset.get_next_dataloader(
+                        cache_dir = config.dataset_cache_dir,
                         load_script_path = config.loader_script_path,
                         tokenizer = tokenizer,
                         batch_size = config.bs,
                         sequence_length = config.sl,
                         mock = config.mock,
+                        shuffle_seed = config.shuffle_seed,
                         return_dataset = True
                     )
-                    for k,v in ds._info.download_checksums.items():
-                        bt.logging.info( f"Loaded data info: {k} {v['num_bytes']} B" )
-                    pass
+                    url, size = next(reversed(ds._info.download_checksums.items()))
+                    bt.logging.info( f"Loaded data from: {url}" )
+                    bt.logging.info( f"Loaded data size: {size.get('num_bytes', -1)} B" )
 
                 # Run eval online.
                 if step % config.steps_per_eval == 0:
