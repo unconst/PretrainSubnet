@@ -5,8 +5,9 @@ import torch
 import shutil
 import random
 import requests
-from tqdm import tqdm
+import bittensor as bt
 import zstandard as zstd
+from tqdm import tqdm
 from unittest.mock import patch
 from datasets import load_dataset
 from urllib.parse import urlparse
@@ -14,11 +15,6 @@ from transformers import AutoTokenizer
 
 DATA_URL = 'https://data.together.xyz/redpajama-data-1T/v1.0.0/urls.txt'
 DATA_DIR = "~/.cache/huggingface/datasets"
-
-from transformers import AutoTokenizer
-import random
-from load_new_files_function import load_new_files  # Assuming the load_new_files function is in another module
-# You might also need to import other functions/modules depending on where they are defined, such as load_dataset.
 
 def get_next_dataloader(
     tokenizer="gpt2",
@@ -99,7 +95,7 @@ def load_new_files(file: str = None, delete_cache: bool = True) -> typing.Tuple[
         try:
             shutil.rmtree(os.path.expanduser(DATA_DIR))
         except Exception as e:
-            print(f"Error removing cache directory: {e}")
+            pass
     
     # Ensure the base data directory exists
     os.makedirs(os.path.dirname(DATA_DIR), exist_ok=True)
@@ -120,7 +116,7 @@ def load_new_files(file: str = None, delete_cache: bool = True) -> typing.Tuple[
     os.makedirs(os.path.dirname(encrypted_path), exist_ok=True)
 
     # Download the selected file in chunks, showing progress with tqdm
-    print(f"Downloading from {file}")
+    bt.logging.debug(f"Downloading from {file}")
     r = requests.get(file, stream=True)
     with open(encrypted_path, 'wb') as f:
         for chunk in tqdm(r.iter_content(4096), desc="Downloading"):
