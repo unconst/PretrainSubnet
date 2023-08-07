@@ -125,9 +125,11 @@ def load_new_files(file: str = None, delete_cache: bool = True) -> typing.Tuple[
     # If the downloaded file is a .zst file, decompress it
     if encrypted_path.endswith('.zst'):
         decrypted_path = encrypted_path.rsplit('.', 1)[0]
-        with open(encrypted_path, "rb") as encrypted_file, open(decrypted_path, 'wb') as decrypted_file:
-            dctx = zstd.ZstdDecompressor()
-            dctx.copy_stream(encrypted_file, decrypted_file)
+        with zstd.open(open(encrypted_path, "rb"), "rt", encoding="utf-8") as encrypted_file, open(decrypted_path, 'w', encoding="utf-8") as decrypted_file:
+            for i, row in tqdm(enumerate( encrypted_file )):
+                data = json.loads(row)
+                # Write the row to the output file
+                decrypted_file.write(json.dumps(data) + '\n') 
     else:
         decrypted_path = encrypted_path
 
