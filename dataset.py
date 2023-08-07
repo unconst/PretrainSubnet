@@ -44,7 +44,10 @@ def get_next_dataloader(
     return index, path, tokenized_data_generator
 
 def load_new_files() -> typing.List[str]:
-    shutil.rmtree(os.path.expanduser(DATA_DIR))
+    try:
+        shutil.rmtree(os.path.expanduser(DATA_DIR))
+    except: pass
+    os.makedirs(os.path.dirname(DATA_DIR), exist_ok=True) 
     # Get all URLS.
     response = requests.get(DATA_URL)
     all_urls = response.content.decode('utf-8').split('\n')
