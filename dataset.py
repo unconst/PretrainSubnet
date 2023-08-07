@@ -15,74 +15,122 @@ from transformers import AutoTokenizer
 DATA_URL = 'https://data.together.xyz/redpajama-data-1T/v1.0.0/urls.txt'
 DATA_DIR = "~/.cache/huggingface/datasets"
 
+from transformers import AutoTokenizer
+import random
+from load_new_files_function import load_new_files  # Assuming the load_new_files function is in another module
+# You might also need to import other functions/modules depending on where they are defined, such as load_dataset.
+
 def get_next_dataloader(
-    tokenizer = "gpt2",
+    tokenizer="gpt2",
     batch_size=1,
     sequence_length=1024,
     mock=False,
     shuffle_seed=42,
     return_dataset=False,
 ):
-    index, path = load_new_files()
-    if not mock:
-        dataset = load_dataset('json', data_files = path)
-        dataset = dataset.shuffle( shuffle_seed )
-    else:
-        dataset = [{"text": "mock sentence " + str(i) * random.randint( 0, 1000 ) } for i in range(random.randint( 1, 1000 ))]  # creating 100 mock sentences
+    """
+    Load and tokenize datasets for training.
 
+    Args:
+    - tokenizer (str or tokenizer instance, default="gpt2"): Tokenizer identifier or actual tokenizer.
+    - batch_size (int, default=1): Batch size for data loading.
+    - sequence_length (int, default=1024): Maximum sequence length for tokenized data.
+    - mock (bool, default=False): If True, mock data will be generated instead of loading actual data.
+    - shuffle_seed (int, default=42): Seed value for shuffling the dataset.
+    - return_dataset (bool, default=False): If True, the function will also return the raw dataset.
+
+    Returns:
+    - tuple: If return_dataset is False, returns (index, path, tokenized_data_generator).
+             If return_dataset is True, returns (tokenized_data_generator, dataset).
+    """
+    
+    # Load the new files and get their index and path
+    index, path = load_new_files()
+    
+    # Load the dataset: Use the actual dataset if not in mock mode, otherwise generate mock data
+    if not mock:
+        dataset = load_dataset('json', data_files=path)
+        dataset = dataset.shuffle(shuffle_seed)
+    else:
+        # Generate a list of mock sentences with variable repetitions
+        dataset = [
+            {"text": "mock sentence " + str(i) * random.randint(0, 1000)}
+            for i in range(random.randint(1, 1000))
+        ]
+
+    # Initialize the tokenizer if a string identifier is provided
     if isinstance(tokenizer, str):
         tokenizer = AutoTokenizer.from_pretrained(tokenizer)
         tokenizer.pad_token = tokenizer.eos_token
 
+    # Tokenize the dataset
     tokenized_data_generator = _tokenize_data(
-        dataset, 
-        tokenizer = tokenizer, 
-        max_seq_length = sequence_length,
-        batch_size = batch_size
+        dataset,
+        tokenizer=tokenizer,
+        max_seq_length=sequence_length,
+        batch_size=batch_size,
     )
+
+    # Return the desired outputs based on the `return_dataset` flag
     if return_dataset:
         return tokenized_data_generator, dataset
-    
+
     return index, path, tokenized_data_generator
 
-def load_new_files() -> typing.Tuple[int, str]:
-    try:
-        shutil.rmtree(os.path.expanduser(DATA_DIR))
-    except: pass
-    os.makedirs(os.path.dirname(DATA_DIR), exist_ok=True) 
-    # Get all URLS.
+def load_new_files(file: str = None, delete_cache: bool = True) -> typing.Tuple[int, str]:
+    """
+    Load new data files by downloading them. If the downloaded file is compressed (i.e., .zst),
+    it will be decompressed.
+
+    Args:
+    - file (str, optional): Specific URL to download from the available URL list. 
+                            If not provided, a random URL will be chosen.
+    - delete_cache (bool, default=True): If set to True, the existing cache will be deleted.
+
+    Returns:
+    - tuple:
+        - int: The index of the chosen file from the available URLs.
+        - str: Path to the downloaded (and possibly decrypted) file.
+
+    """
+    
+    # If instructed, delete the cache directory
+    if delete_cache:
+        try:
+            shutil.rmtree(os.path.expanduser(DATA_DIR))
+        except Exception as e:
+            print(f"Error removing cache directory: {e}")
+    
+    # Ensure the base data directory exists
+    os.makedirs(os.path.dirname(DATA_DIR), exist_ok=True)
+
+    # Fetch the list of available data URLs
     response = requests.get(DATA_URL)
     all_urls = response.content.decode('utf-8').split('\n')
 
-    # Create download folder.
-    index = random.choice(range(len(all_urls)))
-    file = all_urls[index]
-    encrypted_path = os.path.expanduser( DATA_DIR + '/' + urlparse(file).path[1:] )
-    os.makedirs(os.path.dirname(encrypted_path), exist_ok=True) 
+    # Select a URL. If a specific URL is provided, use it. Otherwise, pick a random one.
+    if file:
+        index = all_urls.index(file)
+    else:
+        index = random.choice(range(len(all_urls)))
+        file = all_urls[index]
 
-    print(encrypted_path)
-    # Download data.
+    # Determine the save path for the downloaded data
+    encrypted_path = os.path.expanduser(DATA_DIR + '/' + urlparse(file).path[1:])
+    os.makedirs(os.path.dirname(encrypted_path), exist_ok=True)
+
+    # Download the selected file in chunks, showing progress with tqdm
+    print(f"Downloading from {file}")
     r = requests.get(file, stream=True)
     with open(encrypted_path, 'wb') as f:
-        for chunk in tqdm(r.iter_content(4096)):
+        for chunk in tqdm(r.iter_content(4096), desc="Downloading"):
             f.write(chunk)
-    
-    # Define the input and output file paths
+
+    # If the downloaded file is a .zst file, decompress it
     if encrypted_path.endswith('.zst'):
-        decrypted_path = encrypted_path.rsplit('.', 1)[0]  # Removes the last extension (.zst)
-        print(decrypted_path)
-
-        # Open the input file for reading and the output file for writing
-        # with zstd.open(open(encrypted_path, "rb"), "rt", encoding="utf-8") as encrypted_file, open(decrypted_path, 'w', encoding="utf-8") as decrypted_file:
-        #     for i, row in tqdm(enumerate( encrypted_file )):
-        #         data = json.loads(row)
-        #         # Write the row to the output file
-        #         decrypted_file.write(json.dumps(data) + '\n') 
-
+        decrypted_path = encrypted_path.rsplit('.', 1)[0]
         with open(encrypted_path, "rb") as encrypted_file, open(decrypted_path, 'wb') as decrypted_file:
-            # Create a zstandard decompression stream
             dctx = zstd.ZstdDecompressor()
-            # Use the copy_stream method for direct decompression
             dctx.copy_stream(encrypted_file, decrypted_file)
     else:
         decrypted_path = encrypted_path
