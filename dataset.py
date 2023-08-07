@@ -140,8 +140,7 @@ def _tokenize_data(data, tokenizer, max_seq_length=512, batch_size=32):
     buffer = []
     
     # Iterate over each item in the dataset
-    for item in data:
-        item = json.loads(item)
+    for item in data['train']:
         # Extract the text content from the item
         text = item["text"]
         
