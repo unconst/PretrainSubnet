@@ -73,11 +73,17 @@ def load_new_files() -> typing.Tuple[int, str]:
         print(decrypted_path)
 
         # Open the input file for reading and the output file for writing
-        with zstd.open(open(encrypted_path, "rb"), "rt", encoding="utf-8") as encrypted_file, open(decrypted_path, 'w', encoding="utf-8") as decrypted_file:
-            for i, row in tqdm(enumerate( encrypted_file )):
-                data = json.loads(row)
-                # Write the row to the output file
-                decrypted_file.write(json.dumps(data) + '\n') 
+        # with zstd.open(open(encrypted_path, "rb"), "rt", encoding="utf-8") as encrypted_file, open(decrypted_path, 'w', encoding="utf-8") as decrypted_file:
+        #     for i, row in tqdm(enumerate( encrypted_file )):
+        #         data = json.loads(row)
+        #         # Write the row to the output file
+        #         decrypted_file.write(json.dumps(data) + '\n') 
+
+        with open(encrypted_path, "rb") as encrypted_file, open(decrypted_path, 'wb') as decrypted_file:
+            # Create a zstandard decompression stream
+            dctx = zstd.ZstdDecompressor()
+            # Use the copy_stream method for direct decompression
+            dctx.copy_stream(encrypted_file, decrypted_file)
     else:
         decrypted_path = encrypted_path
 
