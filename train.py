@@ -45,10 +45,10 @@ def parse_arguments():
     parser.add_argument( '--epochs', type=int, default = 3, help = 'Number of training epochs.')
     parser.add_argument( '--steps_per_log', type=int, default = 1, help = 'Number of steps per log.')
     parser.add_argument( '--steps_per_sync', type=int, default = 100, help = 'Number of steps per chain sync.')
-    parser.add_argument( '--steps_per_eval', type=int, default = 300, help = 'Number of steps per eval.')
-    parser.add_argument( '--steps_per_new_dataset', type=int, default = 600, help = 'Number of steps before pulling a new dataset item.')
-    parser.add_argument( '--blocks_per_reduce', type=int, default = 22, help = 'Number of steps reduce.')
-    parser.add_argument( '--blocks_per_set_weights', type=int, default = 100, help = 'Number of blocks before we set weights.')
+    parser.add_argument( '--steps_per_eval', type=int, default = 100, help = 'Number of steps per eval.')
+    parser.add_argument( '--steps_per_new_dataset', type=int, default = 250, help = 'Number of steps before pulling a new dataset item.')
+    parser.add_argument( '--steps_per_reduce', type=int, default = 100, help = 'Number of steps reduce.')
+    parser.add_argument( '--steps_per_set_weights', type=int, default = 400, help = 'Number of blocks before we set weights.')
     parser.add_argument( '--num_warmup', type=int, default = 2000, help = 'Scheduler warm up steps.')
     parser.add_argument( '--netuid', type = int, default = 1, help = "The chain subnet uid." )
     parser.add_argument( '--name', type = str, default = 'pretrain', help = "Name of run." )
@@ -223,6 +223,9 @@ for epoch in range(config.epochs):
                 optimizer.step()
                 scheduler.step() 
                 optimizer.zero_grad()
+
+                # Increment step.
+                step += 1
                 
                 # Log state to terminal and wandb.
                 if step % config.steps_per_log == 0:
@@ -238,21 +241,18 @@ for epoch in range(config.epochs):
                     my_uid = metagraph.hotkeys.index( wallet.hotkey.ss58_address )
                     if config.wandb: wandb.log( { "R": metagraph.R[my_uid], 'S': metagraph.S[my_uid], 'E': metagraph.E[my_uid], 'D': metagraph.D[my_uid], 'I':  metagraph.I[my_uid]} )
 
-                # Increment step.
-                step += 1
-
                 # Check if we need to sync based on blocks passed since last sync.
                 current_block = subtensor.block
-                if current_block - last_sync_block > config.blocks_per_reduce and not config.local:
+                if step % config.steps_per_reduce == 0 and not config.local:
                     bt.logging.info( f"Reducing model at block {current_block}" )
                     # Perform the reduction
                     success, last_merge_axon = reduce.reduce(model, dendrite, metagraph)
                     last_sync_block = current_block
                     bt.logging.info( f"Reduced with axon {last_merge_axon}" )
-                    if config.wandb: wandb.log( {'merge': axon.uid } )
+                    if config.wandb: wandb.log( {'reduce': axon.uid } )
 
                 # Check if we should set weights after this point.
-                if current_block - last_set_weights > config.blocks_per_set_weights and not config.local:
+                if step % config.steps_per_set_weights == 0 and not config.local:
                     bt.logging.info( f"Setting weights on chain at block {current_block}" )
                     # Create weights tensor.
                     weights = torch.zeros_like( metagraph.uids, dtype = torch.float32 )
