@@ -14,7 +14,6 @@ DATA_URL = 'https://data.together.xyz/redpajama-data-1T/v1.0.0/urls.txt'
 DATA_DIR = "~/.cache/huggingface/datasets"
 
 def get_next_dataloader(
-    k: int = 1,
     tokenizer = "gpt2",
     batch_size=1,
     sequence_length=1024,
@@ -22,7 +21,7 @@ def get_next_dataloader(
     shuffle_seed=42,
     return_dataset=False,
 ):
-    index, path = load_new_files( k )
+    index, path = load_new_files( )
     if not mock:
         dataset = load_dataset('json', data_files = path)
         dataset = dataset.shuffle( shuffle_seed )
@@ -44,7 +43,7 @@ def get_next_dataloader(
     
     return index, path, tokenized_data_generator
 
-def load_new_files(k:int) -> typing.List[str]:
+def load_new_files() -> typing.List[str]:
     shutil.rmtree(os.path.expanduser(DATA_DIR))
     # Get all URLS.
     response = requests.get(DATA_URL)
