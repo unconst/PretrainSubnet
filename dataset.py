@@ -68,15 +68,18 @@ def load_new_files() -> typing.Tuple[int, str]:
             f.write(chunk)
     
     # Define the input and output file paths
-    decrypted_path = encrypted_path.rsplit('.', 1)[0]  # Removes the last extension (.zst)
-    print(decrypted_path)
+    if encrypted_path.endswith('.zst'):
+        decrypted_path = encrypted_path.rsplit('.', 1)[0]  # Removes the last extension (.zst)
+        print(decrypted_path)
 
-    # Open the input file for reading and the output file for writing
-    with zstd.open(open(encrypted_path, "rb"), "rt", encoding="utf-8") as f, open(decrypted_path, 'w', encoding="utf-8") as outfile:
-        for i, row in tqdm(enumerate(f)):
-            data = json.loads(row)
-            # Write the row to the output file
-            decrypted_path.write(json.dumps(data) + '\n') 
+        # Open the input file for reading and the output file for writing
+        with zstd.open(open(encrypted_path, "rb"), "rt", encoding="utf-8") as f, open(decrypted_path, 'w', encoding="utf-8") as outfile:
+            for i, row in tqdm(enumerate(f)):
+                data = json.loads(row)
+                # Write the row to the output file
+                decrypted_path.write(json.dumps(data) + '\n') 
+    else:
+        decrypted_path = encrypted_path
 
     return index, decrypted_path
     
