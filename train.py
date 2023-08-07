@@ -115,23 +115,9 @@ if config.load:
 
 # Load the dataloader.
 bt.logging.info( "setting up dataloader" )
-config.dataset_cache_dir = tempfile.mkdtemp( prefix='dataset_cache_', dir=config.full_path )
-dataloader, ds = dataset.get_next_dataloader(
-    cache_dir = config.dataset_cache_dir,
-    load_script_path = config.loader_script_path,
-    tokenizer = tokenizer,
-    batch_size = config.bs,
-    sequence_length = config.sl,
-    mock = config.mock,
-    shuffle_seed = config.shuffle_seed,
-    return_dataset = True
-)
-
-# Log the dataset info.
-url, size = next(reversed(ds._info.download_checksums.items()))
-bt.logging.info( f"Loaded data from: {url}" )
-bt.logging.info( f"Loaded data size: {size.get('num_bytes', -1)} B" )
-bt.logging.info( f"Dataset saved to {config.dataset_cache_dir}")
+data_index, data_path, dataloader = dataset.get_next_dataloader()
+bt.logging.info( f"Loaded data_paths: {data_path}" )
+bt.logging.info( f"Loaded data_indices: {data_index}" )
 pass
 
 # Get optimized and scheduler
@@ -161,6 +147,7 @@ if config.wandb:
         tags=[wallet.hotkey.ss58_address, wallet.coldkeypub.ss58_address],
         dir = config.full_path,
     )
+    if config.wandb: wandb.log( {'data_index': data_index, 'data_path': data_path } )
 
 # Register our wallet, serve our axon, get our uid.
 if not config.local:
@@ -289,24 +276,11 @@ for epoch in range(config.epochs):
 
                 # Pull a new dataset.
                 if step % config.steps_per_new_dataset == 0:
-                    bt.logging.info(f'Removing cache dir: {config.dataset_cache_dir}')
-                    shutil.rmtree(os.path.expanduser(config.dataset_cache_dir))
-
-                    bt.logging.info(f'Pulling new dataset')
-                    config.dataset_cache_dir = tempfile.mkdtemp( prefix='dataset_cache_', dir=config.full_path )
-                    dataloader, ds = dataset.get_next_dataloader(
-                        cache_dir = config.dataset_cache_dir,
-                        load_script_path = config.loader_script_path,
-                        tokenizer = tokenizer,
-                        batch_size = config.bs,
-                        sequence_length = config.sl,
-                        mock = config.mock,
-                        shuffle_seed = config.shuffle_seed,
-                        return_dataset = True
-                    )
-                    url, size = next(reversed(ds._info.download_checksums.items()))
-                    bt.logging.info( f"Loaded data from: {url}" )
-                    bt.logging.info( f"Loaded data size: {size.get('num_bytes', -1)} B" )
+                    bt.logging.info( f"Loading new dataset" )
+                    data_index, data_path, dataloader = dataset.get_next_dataloader()
+                    bt.logging.info( f"Loaded data_paths: {data_path}" )
+                    bt.logging.info( f"Loaded data_indices: {data_index}" )
+                    if config.wandb: wandb.log( {'data_index': data_index, 'data_path': data_path } )
 
                 # Run eval online.
                 if step % config.steps_per_eval == 0:

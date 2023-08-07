@@ -22,9 +22,9 @@ def get_next_dataloader(
     shuffle_seed=42,
     return_dataset=False,
 ):
-    paths = load_new_files( k )
+    index, path = load_new_files( k )
     if not mock:
-        dataset = load_dataset('json', data_files = paths)
+        dataset = load_dataset('json', data_files = path)
         dataset = dataset.shuffle( shuffle_seed )
     else:
         dataset = [{"text": "mock sentence " + str(i) * random.randint( 0, 1000 ) } for i in range(random.randint( 1, 1000 ))]  # creating 100 mock sentences
@@ -42,32 +42,30 @@ def get_next_dataloader(
     if return_dataset:
         return tokenized_data_generator, dataset
     
-    return tokenized_data_generator
-
+    return index, path, tokenized_data_generator
 
 def load_new_files(k:int) -> typing.List[str]:
-    paths = []
     shutil.rmtree(os.path.expanduser(DATA_DIR))
-    for _ in tqdm( range(k) ):
-        # Get all URLS.
-        response = requests.get(DATA_URL)
-        all_urls = response.content.decode('utf-8').split('\n')
+    # Get all URLS.
+    response = requests.get(DATA_URL)
+    all_urls = response.content.decode('utf-8').split('\n')
 
-        # Create download folder.
-        file = random.choice(all_urls)
-        dload_loc = DATA_DIR + '/' + urlparse(file).path[1:]
-        os.makedirs(os.path.dirname(dload_loc), exist_ok=True) 
+    # Create download folder.
+    index = random.choice(range(len(all_urls)))
+    file = all_urls[index]
+    dload_loc = DATA_DIR + '/' + urlparse(file).path[1:]
+    os.makedirs(os.path.dirname(dload_loc), exist_ok=True) 
 
-        # Download data.
-        r = requests.get(file, stream=True)
-        with open(dload_loc, 'wb') as f:
-            for chunk in tqdm(r.iter_content(1024)):
-                f.write(chunk)
+    # Download data.
+    r = requests.get(file, stream=True)
+    with open(dload_loc, 'wb') as f:
+        for chunk in tqdm(r.iter_content(1024)):
+            f.write(chunk)
 
-        # Load dataset.
-        paths.append( os.path.expanduser( dload_loc ))
+    # Load dataset.
+    path = os.path.expanduser( dload_loc )
 
-    return paths
+    return index, path
     
 def _tokenize_data(data, tokenizer, max_seq_length=512, batch_size=32):
     # Buffer to temporarily hold the tokenized data until a full batch is ready
