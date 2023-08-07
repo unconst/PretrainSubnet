@@ -46,7 +46,7 @@ def parse_arguments():
     parser.add_argument( '--steps_per_log', type=int, default = 1, help = 'Number of steps per log.')
     parser.add_argument( '--steps_per_sync', type=int, default = 100, help = 'Number of steps per chain sync.')
     parser.add_argument( '--steps_per_eval', type=int, default = 300, help = 'Number of steps per eval.')
-    parser.add_argument( '--steps_per_new_dataset', type=int, default = 60, help = 'Number of steps before pulling a new dataset item.')
+    parser.add_argument( '--steps_per_new_dataset', type=int, default = 600, help = 'Number of steps before pulling a new dataset item.')
     parser.add_argument( '--blocks_per_reduce', type=int, default = 22, help = 'Number of steps reduce.')
     parser.add_argument( '--blocks_per_set_weights', type=int, default = 100, help = 'Number of blocks before we set weights.')
     parser.add_argument( '--num_warmup', type=int, default = 2000, help = 'Scheduler warm up steps.')
