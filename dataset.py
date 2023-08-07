@@ -64,7 +64,7 @@ def load_new_files() -> typing.Tuple[int, str]:
     # Download data.
     r = requests.get(file, stream=True)
     with open(encrypted_path, 'wb') as f:
-        for chunk in tqdm(r.iter_content(1024)):
+        for chunk in tqdm(r.iter_content(4096)):
             f.write(chunk)
     
     # Define the input and output file paths
@@ -73,11 +73,11 @@ def load_new_files() -> typing.Tuple[int, str]:
         print(decrypted_path)
 
         # Open the input file for reading and the output file for writing
-        with zstd.open(open(encrypted_path, "rb"), "rt", encoding="utf-8") as f, open(decrypted_path, 'w', encoding="utf-8") as outfile:
-            for i, row in tqdm(enumerate(f)):
+        with zstd.open(open(encrypted_path, "rb"), "rt", encoding="utf-8") as encrypted_file, open(decrypted_path, 'w', encoding="utf-8") as decrypted_file:
+            for i, row in tqdm(enumerate( encrypted_file )):
                 data = json.loads(row)
                 # Write the row to the output file
-                decrypted_path.write(json.dumps(data) + '\n') 
+                decrypted_file.write(json.dumps(data) + '\n') 
     else:
         decrypted_path = encrypted_path
 
