@@ -1,10 +1,12 @@
 import os
+import json
 import typing
 import torch
 import shutil
 import random
 import requests
 from tqdm import tqdm
+import zstandard as zstd
 from unittest.mock import patch
 from datasets import load_dataset
 from urllib.parse import urlparse
@@ -21,7 +23,7 @@ def get_next_dataloader(
     shuffle_seed=42,
     return_dataset=False,
 ):
-    index, path = load_new_files( )
+    index, path = load_new_files()
     if not mock:
         dataset = load_dataset('json', data_files = path)
         dataset = dataset.shuffle( shuffle_seed )
@@ -43,7 +45,7 @@ def get_next_dataloader(
     
     return index, path, tokenized_data_generator
 
-def load_new_files() -> typing.List[str]:
+def load_new_files() -> typing.Tuple[int, str]:
     try:
         shutil.rmtree(os.path.expanduser(DATA_DIR))
     except: pass
@@ -63,11 +65,19 @@ def load_new_files() -> typing.List[str]:
     with open(dload_loc, 'wb') as f:
         for chunk in tqdm(r.iter_content(1024)):
             f.write(chunk)
+    
+    # Define the input and output file paths
+    encrypted_path = os.path.expanduser( dload_loc )
+    decrypted_path = encrypted_path.rsplit('.', 1)[0]  # Removes the last extension (.zst)
 
-    # Load dataset.
-    path = os.path.expanduser( dload_loc )
+    # Open the input file for reading and the output file for writing
+    with zstd.open(open(encrypted_path, "rb"), "rt", encoding="utf-8") as f, open(decrypted_path, 'w', encoding="utf-8") as outfile:
+        for i, row in tqdm(enumerate(f)):
+            data = json.loads(row)
+            # Write the row to the output file
+            decrypted_path.write(json.dumps(data) + '\n') 
 
-    return index, path
+    return index, decrypted_path
     
 def _tokenize_data(data, tokenizer, max_seq_length=512, batch_size=32):
     # Buffer to temporarily hold the tokenized data until a full batch is ready
