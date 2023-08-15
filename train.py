@@ -115,9 +115,9 @@ if config.load:
 
 # Load the dataloader.
 bt.logging.info( "setting up dataloader" )
-data_index, data_path, dataloader = dataset.get_next_dataloader()
-bt.logging.info( f"Loaded data_paths: {data_path}" )
-bt.logging.info( f"Loaded data_indices: {data_index}" )
+data_size, data_url, dataloader = dataset.get_next_dataloader()
+bt.logging.info( f"Loaded data_urls: {data_url}" )
+bt.logging.info( f"Loaded data_size: {data_size}" )
 pass
 
 # Get optimized and scheduler
@@ -147,7 +147,7 @@ if config.wandb:
         tags=[wallet.hotkey.ss58_address, wallet.coldkeypub.ss58_address],
         dir = config.full_path,
     )
-    if config.wandb: wandb.log( {'data_index': data_index, 'data_path': data_path } )
+if config.wandb: wandb.log( {'data_size': data_size, 'data_url': data_url } )
 
 # Register our wallet, serve our axon, get our uid.
 if not config.local:
@@ -277,10 +277,10 @@ for epoch in range(config.epochs):
                 # Pull a new dataset.
                 if step % config.steps_per_new_dataset == 0:
                     bt.logging.info( f"Loading new dataset" )
-                    data_index, data_path, dataloader = dataset.get_next_dataloader()
-                    bt.logging.info( f"Loaded data_paths: {data_path}" )
-                    bt.logging.info( f"Loaded data_indices: {data_index}" )
-                    if config.wandb: wandb.log( {'data_index': data_index, 'data_path': data_path } )
+                    data_size, data_url, dataloader = dataset.get_next_dataloader()
+                    bt.logging.info( f"Loaded data_urls: {data_url}" )
+                    bt.logging.info( f"Loaded data_size: {data_size}" )
+                    if config.wandb: wandb.log( {'data_size': data_size, 'data_url': data_url } )
 
                 # Run eval online.
                 if step % config.steps_per_eval == 0:

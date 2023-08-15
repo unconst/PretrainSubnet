@@ -5,6 +5,7 @@ import torch
 import shutil
 import random
 import requests
+import tempfile
 import bittensor as bt
 import zstandard as zstd
 from tqdm import tqdm
@@ -13,9 +14,8 @@ from datasets import load_dataset
 from urllib.parse import urlparse
 from transformers import AutoTokenizer
 
-DATA_URL = 'https://data.together.xyz/redpajama-data-1T/v1.0.0/urls.txt'
-DATA_DIR = "~/.cache/huggingface/datasets"
-DATA_FILE_DIR = None
+BASE_CACHE_DIR = "~/.cache/huggingface/datasets"
+DATA_CACHE_DIR = None
 
 def get_next_dataloader(
     tokenizer="gpt2",
@@ -23,7 +23,8 @@ def get_next_dataloader(
     sequence_length=1024,
     mock=False,
     shuffle_seed=42,
-    return_dataset=False,
+    load_script_path="scripts/red_pajama_loader.py",
+    cache_dir="~/.cache/huggingface/datasets",
 ):
     """
     Load and tokenize datasets for training.
@@ -34,19 +35,23 @@ def get_next_dataloader(
     - sequence_length (int, default=1024): Maximum sequence length for tokenized data.
     - mock (bool, default=False): If True, mock data will be generated instead of loading actual data.
     - shuffle_seed (int, default=42): Seed value for shuffling the dataset.
-    - return_dataset (bool, default=False): If True, the function will also return the raw dataset.
 
     Returns:
-    - tuple: If return_dataset is False, returns (index, path, tokenized_data_generator).
-             If return_dataset is True, returns (tokenized_data_generator, dataset).
+    - tuple: (url, path, tokenized_data_generator).
     """
-    
-    # Load the new files and get their index and path
-    index, path = load_new_files()
-    
+
+    global DATA_CACHE_DIR
+
+    # Delete the old cache directory if it exists
+    if DATA_CACHE_DIR and os.path.exists(DATA_CACHE_DIR): shutil.rmtree(DATA_CACHE_DIR)    
+
+    # Create a new sub tempdir in the cache directory for this batch of data
+    cache_dir = tempfile.mkdtemp( prefix='redpajama_', dir=os.path.expanduser( BASE_CACHE_DIR ) )
+    DATA_CACHE_DIR = cache_dir
+
     # Load the dataset: Use the actual dataset if not in mock mode, otherwise generate mock data
     if not mock:
-        dataset = load_dataset('json', data_files=path)
+        dataset = load_dataset(load_script_path, name='default', cache_dir=cache_dir, split='train')
         dataset = dataset.shuffle(shuffle_seed)
     else:
         # Generate a list of mock sentences with variable repetitions
@@ -68,90 +73,18 @@ def get_next_dataloader(
         batch_size=batch_size,
     )
 
-    # Return the desired outputs based on the `return_dataset` flag
-    if return_dataset:
-        return tokenized_data_generator, dataset
+    # Return information about this particular data subset
+    url, _ = next(reversed(dataset._info.download_checksums.items()))
+    size = dataset.download_size
 
-    return index, path, tokenized_data_generator
-
-def load_new_files(file: str = None, delete_cache: bool = True) -> typing.Tuple[int, str]:
-    """
-    Load new data files by downloading them. If the downloaded file is compressed (i.e., .zst),
-    it will be decompressed.
-
-    Args:
-    - file (str, optional): Specific URL to download from the available URL list. 
-                            If not provided, a random URL will be chosen.
-    - delete_cache (bool, default=True): If set to True, the existing cache will be deleted.
-
-    Returns:
-    - tuple:
-        - int: The index of the chosen file from the available URLs.
-        - str: Path to the downloaded (and possibly decrypted) file.
-
-    """
-    global DATA_FILE_DIR
-
-    # Fetch the list of available data URLs
-    response = requests.get(DATA_URL)
-    all_urls = response.content.decode('utf-8').split('\n')
-
-    # Select a URL. If a specific URL is provided, use it. Otherwise, pick a random one.
-    if file:
-        index = all_urls.index(file)
-    else:
-        index = random.choice(range(len(all_urls)))
-        file = all_urls[index]
-
-    # Create a unique subdirectory for the file based on the index
-    temp_subdir = os.path.expanduser(os.path.join(DATA_DIR, f"temp_subdir_{index}"))
-
-    # If instructed, delete the previous subdirectory cache
-    if delete_cache and DATA_FILE_DIR != None:
-        try:
-            shutil.rmtree(DATA_FILE_DIR)
-        except Exception as e:
-            pass
-
-    # Update the global DATA_FILE_DIR variable
-    DATA_FILE_DIR = temp_subdir
-
-    # Ensure the base data directory and subdirectory exist
-    os.makedirs(DATA_FILE_DIR, exist_ok=True)
-
-    # Determine the save path for the downloaded data
-    encrypted_path = os.path.join(temp_subdir, os.path.basename(urlparse(file).path))
-    os.makedirs(os.path.dirname(encrypted_path), exist_ok=True)
-
-    # Download the selected file in chunks, showing progress with tqdm
-    bt.logging.debug(f"Downloading from {file}")
-    r = requests.get(file, stream=True)
-    with open(encrypted_path, 'wb') as f:
-        for chunk in tqdm(r.iter_content(4096), desc="Downloading"):
-            f.write(chunk)
-
-    # If the downloaded file is a .zst file, decompress it
-    if encrypted_path.endswith('.zst'):
-        decrypted_path = encrypted_path.rsplit('.', 1)[0]
-        with zstd.open(open(encrypted_path, "rb"), "rt", encoding="utf-8") as encrypted_file, open(decrypted_path, 'w', encoding="utf-8") as decrypted_file:
-            for i, row in tqdm(enumerate( encrypted_file )):
-                data = json.loads(row)
-                # Write the row to the output file
-                decrypted_file.write(json.dumps(data) + '\n') 
-    else:
-        decrypted_path = encrypted_path
-
-    return index, decrypted_path
+    return size, url, tokenized_data_generator
     
 def _tokenize_data(data, tokenizer, max_seq_length=512, batch_size=32):
     # Buffer to temporarily hold the tokenized data until a full batch is ready
     buffer = []
     
     # Iterate over each item in the dataset
-    for item in data['train']:
-        # Extract the text content from the item
-        text = item["text"]
-        
+    for text in data['text']:
         # Tokenize the text using the given tokenizer
         tokenized_text_full = tokenizer.encode_plus(text)
         
