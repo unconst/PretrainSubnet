@@ -35,6 +35,8 @@ def get_next_dataloader(
     - sequence_length (int, default=1024): Maximum sequence length for tokenized data.
     - mock (bool, default=False): If True, mock data will be generated instead of loading actual data.
     - shuffle_seed (int, default=42): Seed value for shuffling the dataset.
+    - load_script_path (str, default="scripts/red_pajama_loader.py"): Path to the data loading script.
+    - cache_dir (str, default="~/.cache/huggingface/datasets"): Path to the cache directory.
 
     Returns:
     - tuple: (url, path, tokenized_data_generator).
