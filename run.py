@@ -81,33 +81,37 @@ def main():
                 bt.logging.success('Process terminated. Restarting...')
                 p.restart()
 
-            # Check if there are git changes on this local branch.
-            lastest_git_hash = subprocess.check_output(['git', 'rev-parse', f'origin/{branch}']).strip()
 
             # Check if the branch hash has changed, if it has, pull install and restart.
+            bt.logging.success('Changes detected. Pulling updates and restarting...')
+
+            # Stash the local changes.
+            stash_result = subprocess.run(['git', 'stash'], cwd = script_dir, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+            if stash_result.returncode != 0:
+                bt.logging.error(stash_result.stderr.decode())
+            else:
+                bt.logging.success( f'Called stash with output: { stash_result.stdout } ')
+
+            # Fetch the latest changes.
+            fetch_result = subprocess.run(['git', 'fetch'], cwd = script_dir, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+            if fetch_result.returncode != 0:
+                bt.logging.error(fetch_result.stderr.decode())
+            else:
+                bt.logging.success( f'Called fetch with output: { fetch_result.stdout}' )
+
+            # Pull the latest changes.
+            pull_result = subprocess.run(['git', 'pull'], cwd = script_dir, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+            if pull_result.returncode != 0:
+                bt.logging.error(pull_result.stderr.decode())
+            else:
+                bt.logging.success( f'Called pull with output: {pull_result.stdout}' )
+
+            # Check if there are git changes on this local branch.
+            lastest_git_hash = subprocess.check_output(['git', 'rev-parse', f'origin/{branch}']).strip()
             if lastest_git_hash != running_git_hash:
-                bt.logging.success('Changes detected. Pulling updates and restarting...')
-
-                # Stash the local changes.
-                stash_result = subprocess.run(['git', 'stash'], cwd = script_dir, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
-                if stash_result.returncode != 0:
-                    bt.logging.error(stash_result.stderr.decode())
-                else:
-                    bt.logging.success( f'Called stash with output: { stash_result.stdout } ')
-
-                # Fetch the latest changes.
-                fetch_result = subprocess.run(['git', 'fetch'], cwd = script_dir, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
-                if fetch_result.returncode != 0:
-                    bt.logging.error(fetch_result.stderr.decode())
-                else:
-                    bt.logging.success( f'Called fetch with output: { fetch_result.stdout}' )
-
-                # Pull the latest changes.
-                pull_result = subprocess.run(['git', 'pull'], cwd = script_dir, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
-                if pull_result.returncode != 0:
-                    bt.logging.error(pull_result.stderr.decode())
-                else:
-                    bt.logging.success( f'Called pull with output: {pull_result.stdout}' )
+                
+                # Change current.
+                running_git_hash = lastest_git_hash
 
                 # Insall the local changes.
                 install_result = subprocess.run([ sys.executable, '-m', 'pip', 'install', '-r', 'requirements.txt'], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
@@ -116,9 +120,9 @@ def main():
                 else:
                     bt.logging.success( f'Called install with output: {install_result.stdout }' )
 
-                # Restart the script.
-                p.restart()
-                running_git_hash = lastest_git_hash
+                    # Restart the script.
+                    bt.logging.success( f'Restarted the script.' )
+                    p.restart()
             
             # All good, continue.
             else:
