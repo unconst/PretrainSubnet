@@ -55,9 +55,9 @@ class Process:
 
 def get_current_spec_version() -> int:
     import importlib
-    from src import train
-    importlib.reload(train)
-    return train.__spec_version__
+    import src
+    importlib.reload(src)
+    return src.__spec_version__
 
 def main():
     """
