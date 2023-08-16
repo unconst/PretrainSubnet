@@ -67,7 +67,7 @@ def get_config():
     parser.add_argument( '--device', type = str, default = "cuda" if torch.cuda.is_available() else "cpu", help="Device to train on." )
     parser.add_argument( '--max_steps', type=int, default = 50000, help = 'Max training steps.')
     parser.add_argument( '--num_warmup', type=int, default = 2000, help = 'Scheduler warm up steps.')
-    parser.add_argument( '--dataset_name', type = str, default = "red", help="Dataset to use." )
+    parser.add_argument( '--dataset_name', type = str, default = "legacy", help="Dataset to use." )
     bt.subtensor.add_args( parser )
     bt.wallet.add_args( parser )
     bt.axon.add_args( parser )
@@ -242,11 +242,22 @@ def main( config ):
     for epoch in range(config.epochs):
         bt.logging.info( f'Epoch {epoch + 1}/{config.epochs}' )
         for batch in dataloader:
-            batch = batch.to(device)
+            if not config.dataset_name:
+                batch = batch.to(device)
             with torch.autocast( device_type="cuda", enabled=True ):
                 try:
                     # Forward pass.
-                    outputs = model( batch.to(device), labels = batch.to(device) ) 
+                    if not config.dataset_name:
+                        outputs = model( 
+                            batch.to(device), 
+                            labels = batch.to(device) 
+                        ) 
+                    else:
+                         outputs = model(
+                            input_ids = batch["input_ids"].to(device), 
+                            attention_mask = batch["attention_mask"].to(device),
+                            labels = batch["input_ids"].to(device)
+                        ) 
                     
                     # Backward pass
                     loss = outputs.loss / config.accs_per_step
