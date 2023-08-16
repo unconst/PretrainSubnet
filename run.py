@@ -67,7 +67,7 @@ def git_has_changes():
     # If changes detected, re-install the package
     if result.stdout != b'':
         bt.logging.success(f'Reinstalling pretrain package with updates' )
-        subprocess.run([ sys.executable, '-m', 'pip', 'install', '.'], check=True)
+        subprocess.run([ sys.executable, '-m', 'pip', 'install', '-e', '.'], check=True)
 
     return result.stdout != b''
 
