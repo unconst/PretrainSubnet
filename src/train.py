@@ -32,6 +32,7 @@ from transformers import get_linear_schedule_with_warmup
 # Pull in training reduce.
 import reduce as reduce
 import models as models
+import benchmark as benchmark
 
 # Parse arguments
 def get_config():
@@ -299,14 +300,14 @@ def main( config ):
                             bt.logging.info( f"Set weights on chain at block {current_block}" )
 
                         # Run eval online.
-                        # if step % config.steps_per_eval == 0:
-                        #     bt.logging.info(f'Running eval')
-                        #     eval_perplexity = benchmark.calculate_wikitext_perplexity( model, tokenizer, device, config.sl )
-                        #     bt.logging.success(f'Eval perplexity: {eval_perplexity}')
-                        #     if config.wandb: wandb.log( {'eval_perplexity': eval_perplexity } )
-                        #     if eval_perplexity < best_eval:
-                        #         best_eval = eval_perplexity
-                        #         save_model( model )
+                        if step % config.steps_per_eval == 0:
+                            bt.logging.info(f'Running eval')
+                            eval_perplexity = benchmark.calculate_wikitext_perplexity( model, tokenizer, device, config.sl )
+                            bt.logging.success(f'Eval perplexity: {eval_perplexity}')
+                            if config.wandb: wandb.log( {'eval_perplexity': eval_perplexity } )
+                            if eval_perplexity < best_eval:
+                                best_eval = eval_perplexity
+                                save_model( model )
 
 
                 # Catch unknown errors.
