@@ -26,7 +26,6 @@ import bittensor as bt
 from datasets import load_dataset
 from transformers import GPT2TokenizerFast
 from torch.utils.data import DataLoader, IterableDataset
-from transformers import get_linear_schedule_with_warmup
 
 # Pull in training reduce.
 import reduce as reduce
@@ -51,7 +50,6 @@ def get_config():
     parser.add_argument( '--mock', action="store_true", default = False, help = 'Turn on mocking.')
     parser.add_argument( '--self_query', action="store_true", default = False, help = 'Query only yourself.')
     parser.add_argument( '--max_k', type=int, default = 1, help = 'Max number of gradients to merge.')
-    parser.add_argument( '--max_steps', type=int, default = 50000, help = 'Max training steps.')
     parser.add_argument( '--accs_per_step', type=int, default = 60, help = 'Number of training accumulation steps.')
     parser.add_argument( '--epochs', type=int, default = 3, help = 'Number of training epochs.')
     parser.add_argument( '--steps_per_log', type=int, default = 1, help = 'Number of steps per log.')
@@ -59,7 +57,6 @@ def get_config():
     parser.add_argument( '--steps_per_eval', type=int, default = 20, help = 'Number of steps per eval.')
     parser.add_argument( '--steps_per_reduce', type=int, default = 100, help = 'Number of steps reduce.')
     parser.add_argument( '--steps_per_set_weights', type=int, default = 400, help = 'Number of blocks before we set weights.')
-    parser.add_argument( '--num_warmup', type=int, default = 2000, help = 'Scheduler warm up steps.')
     parser.add_argument( '--netuid', type = int, default = 1, help = "The chain subnet uid." )
     parser.add_argument( '--name', type = str, default = 'pretrain', help = "Name of run." )
     parser.add_argument( '--chain_endpoint', type = str, default = "wss://test.finney.opentensor.ai", help="The chain endpoint to connect with." )
@@ -137,7 +134,7 @@ def main( config ):
     dataloader = DataLoader( pile_dataset, batch_size = config.bs, num_workers = 8 )
     pass
 
-    # Get optimized and scheduler
+    # Get optimizer
     bt.logging.info( "setting up optimizer" )
     optimizer = torch.optim.Adam(
         params=model.parameters(),
@@ -146,11 +143,6 @@ def main( config ):
         betas = (0.9, 0.95),
         fused = True if 'cuda' in config.device else False,
     )
-    scheduler = get_linear_schedule_with_warmup( 
-        optimizer, 
-        num_warmup_steps = config.num_warmup, 
-        num_training_steps = config.max_steps 
-    ) 
     pass
 
     # Set up Bittensor
@@ -250,7 +242,6 @@ def main( config ):
 
                         # Apply gradient step.
                         optimizer.step()
-                        scheduler.step() 
                         optimizer.zero_grad()
 
                         # Increment step.
