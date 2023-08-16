@@ -53,6 +53,12 @@ class Process:
         """Check if the process is still running"""
         return self.process is not None and self.process.poll() is None
 
+def get_current_spec_version() -> int:
+    import importlib
+    from src import train
+    importlib.reload(train)
+    return train.__spec_version__
+
 def main():
     """
     Main function to start the process and continuously check for git changes.
@@ -63,7 +69,9 @@ def main():
     wandb_run_id = wandb.util.generate_id()
     script_dir = os.path.dirname(os.path.abspath(__file__))
     branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).strip().decode('utf-8')
-    running_git_hash = subprocess.check_output(['git', 'rev-parse', f'origin/{branch}']).strip()
+
+    # Get spec version
+    running_spec_version = get_current_spec_version()
 
     # Start process.
     bt.logging.success( f'Starting: {sys.executable} src/train.py --wandb_run_id {wandb_run_id} { sys.argv[1:] }' )
@@ -107,11 +115,11 @@ def main():
                 bt.logging.success( f'Called pull with output: {pull_result.stdout}' )
 
             # Check if there are git changes on this local branch.
-            lastest_git_hash = subprocess.check_output(['git', 'rev-parse', f'origin/{branch}']).strip()
-            if lastest_git_hash != running_git_hash:
+            latest_spec_version = get_current_spec_version()
+            if latest_spec_version != running_spec_version:
                 
                 # Change current.
-                running_git_hash = lastest_git_hash
+                running_spec_version = latest_spec_version
 
                 # Insall the local changes.
                 install_result = subprocess.run([ sys.executable, '-m', 'pip', 'install', '-r', 'requirements.txt'], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
