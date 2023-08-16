@@ -29,6 +29,7 @@ from transformers import GPT2TokenizerFast, AdamW, get_linear_schedule_with_warm
 from torch.utils.data import DataLoader, IterableDataset
 
 # Pull in training reduce.
+import __init__
 import reduce as reduce
 import models as models
 import benchmark as benchmark
@@ -93,6 +94,7 @@ def main( config ):
     # Setup logging.
     bt.logging( config = config, logging_dir = config.full_path )
     bt.logging.info( config )
+    bt.logging.info(f'Running spec version: {__init__.__spec_version__}')
 
     # Load model.
     bt.logging.info( "setting up model" )
@@ -291,7 +293,7 @@ def main( config ):
                             perplexity = torch.exp(loss * config.accs_per_step).item()
                             loss = loss * config.accs_per_step
                             bt.logging.info(f'Step {step}, Loss {loss}, Perplexity {perplexity}, Tokens {tokens} ')
-                            if config.wandb: wandb.log( {'step': step, 'loss': loss, 'perplexity': perplexity, 'tokens': tokens} )
+                            if config.wandb: wandb.log( {'step': step, 'loss': loss, 'perplexity': perplexity, 'tokens': tokens, 'spec': __init__.__spec_version__ } )
 
                         # Sync chain state.
                         if step % config.steps_per_sync == 0 and not config.local:
