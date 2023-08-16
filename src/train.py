@@ -66,6 +66,7 @@ def get_config():
     parser.add_argument( '--device', type = str, default = "cuda" if torch.cuda.is_available() else "cpu", help="Device to train on." )
     parser.add_argument( '--max_steps', type=int, default = 50000, help = 'Max training steps.')
     parser.add_argument( '--num_warmup', type=int, default = 2000, help = 'Scheduler warm up steps.')
+    parser.add_argument( '--dataset_name', type = str, default = "pile", help="Dataset to use." )
     bt.subtensor.add_args( parser )
     bt.wallet.add_args( parser )
     bt.axon.add_args( parser )
@@ -118,13 +119,23 @@ def main( config ):
         except Exception as e:
             bt.logging.error( f"Failed to load model with error: {e}" )
 
-    class PileDataset(IterableDataset):
-        def __init__(self, tokenizer, sequence_length ):
+    class Dataset(IterableDataset):
+        def __init__(self, dataset_name:str, tokenizer, sequence_length ):
+            self.dataset_name = dataset_name
             self.tokenizer = tokenizer
             self.sequence_length = sequence_length
         def __iter__(self):
+            # Select the dataset.
+            if self.dataset_name == 'pile':
+                data_streamer = load_dataset( "EleutherAI/pile", name="all", split="train", streaming=True )
+            elif self.dataset_name == 'red':
+                data_streamer = load_dataset("togethercomputer/RedPajama-Data-1T", 'default', split='train', streaming=True)
+            else:
+                raise RuntimeError( f'{self.dataset_name} is unknown.' )
+            
+            # Iterate and tokenize the dataset.
             buffer = []
-            for sample in load_dataset( "EleutherAI/pile", name="all", split="train", streaming=True ).shuffle(buffer_size=10_000):
+            for sample in data_streamer.shuffle(buffer_size=10_000):
                 buffer += self.tokenizer(sample["text"])["input_ids"]
                 buffer += [self.tokenizer.eos_token_id]
                 while len(buffer) > self.sequence_length:
@@ -133,7 +144,7 @@ def main( config ):
 
     # Load the dataloader.
     bt.logging.info( "setting up dataloader" )
-    pile_dataset = PileDataset( tokenizer = tokenizer, sequence_length = config.sl )
+    pile_dataset = Dataset( dataset_name = config.dataset_name, tokenizer = tokenizer, sequence_length = config.sl )
     dataloader = DataLoader( pile_dataset, batch_size = config.bs, num_workers = 8 )
     pass
 
