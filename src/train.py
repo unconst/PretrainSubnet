@@ -15,7 +15,7 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-__spec_version__ = 4
+__spec_version__ = 5
 
 # Imports
 import os
@@ -43,7 +43,7 @@ signal.signal(signal.SIGTERM, handler_sigterm)
 # Parse arguments
 def get_config():
     parser = argparse.ArgumentParser()
-    parser.add_argument( '--lr', type=float, default = 3e-3, help = 'Training learning rate.')
+    parser.add_argument( '--lr', type=float, default = 3e-5, help = 'Training learning rate.')
     parser.add_argument( '--wd', type=float, default = 1e-1, help = 'Training weight decay.')
     parser.add_argument( '--bs', type=int, default = 4, help = 'Training batch size.')
     parser.add_argument( '--sl', type=int, default = 1024, help = 'Training sequence length.')
