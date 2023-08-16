@@ -15,7 +15,7 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-__spec_version__ = 5
+__spec_version__ = 6
 
 # Imports
 import os
@@ -262,7 +262,7 @@ def main( config ):
                         if step % config.steps_per_log == 0:
                             perplexity = torch.exp(loss * config.accs_per_step).item()
                             loss = loss * config.accs_per_step
-                            bt.logging.info(f'Step {step}, Loss {loss}, Perplexity {perplexity}, Tokens {tokens} ')
+                            bt.logging.info(f'Step {step}, Loss {loss}, Perplexity {perplexity}, Tokens {tokens}, __spec_version__: {__spec_version__}  ')
                             if config.wandb: wandb.log( {'step': step, 'loss': loss, 'perplexity': perplexity, 'tokens': tokens, '__spec_version__': __spec_version__ } )
 
                         # Sync chain state.
