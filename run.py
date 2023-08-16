@@ -60,7 +60,7 @@ def main():
     # Get run state.
     wandb_run_id = wandb.util.generate_id()
     branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).strip().decode('utf-8')
-    running_git_hash = subprocess.check_output(['git', 'rev-parse', f'origin/{current_branch}']).strip()
+    running_git_hash = subprocess.check_output(['git', 'rev-parse', f'origin/{branch}']).strip()
 
     # Start process.
     bt.logging.success( f'Starting: {sys.executable} src/train.py --wandb_run_id {wandb_run_id} { sys.argv[1:] }' )
