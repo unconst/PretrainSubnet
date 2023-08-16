@@ -113,7 +113,10 @@ def main( config ):
 
     # Optionally load model from disk.
     if config.load:
-        model = load_model().to(device).train()
+        try:
+            model = load_model().to(device).train()
+        except Exception as e:
+            bt.logging.error( f"Failed to load model with error: {e}" )
 
     class PileDataset(IterableDataset):
         def __init__(self, tokenizer, sequence_length ):
