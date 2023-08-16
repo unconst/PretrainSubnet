@@ -45,6 +45,7 @@ def get_config():
     parser.add_argument( '--load', action="store_true", default = False, help = 'Load local model instead of sync.')
     parser.add_argument( '--local', action="store_true", default = False, help = 'Turn on local training.')
     parser.add_argument( '--wandb', action="store_true", default = False, help = 'Turn on wandb')
+    parser.add_argument( '--wandb_run_id', type = str, default = None, help="Set the wandb run for carry forward." )
     parser.add_argument( '--validator', action="store_true", default = False, help = 'Turn on validating')
     parser.add_argument( '--no_initial_sync', action="store_true", default = False, help = 'Turn off initial model sync.')
     parser.add_argument( '--mock', action="store_true", default = False, help = 'Turn on mocking.')
@@ -166,6 +167,8 @@ def main( config ):
             mode = "online",
             tags=[wallet.hotkey.ss58_address, wallet.coldkeypub.ss58_address],
             dir = config.full_path,
+            run_id = None if not config.wandb_run_id else config.wandb_run_id,
+            resume = "allow" if config.wandb_run_id else False
         )
 
     # Register our wallet, serve our axon, get our uid.

@@ -17,6 +17,7 @@
 import os
 import sys
 import time
+import wandb
 import random
 import subprocess
 import bittensor as bt
@@ -85,8 +86,9 @@ def main():
     Main function to start the process and continuously check for git changes.
     If changes are detected, pull them and restart the process.
     """
+    wandb_run_id = wandb.util.generate_id()
     bt.logging.success( f'Starting: {sys.executable} src/train.py { sys.argv[1:] }' )
-    p = Process([sys.executable, 'src/train.py'] + sys.argv[1:] , stdout=sys.stdout, stderr=sys.stderr)
+    p = Process([sys.executable, 'src/train.py', '--wandb_run_id', wandb_run_id ] + sys.argv[1:] , stdout=sys.stdout, stderr=sys.stderr)
     p.start()
     
     try:
