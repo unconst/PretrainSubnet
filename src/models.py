@@ -48,7 +48,7 @@ def make_model( config ):
     if config.model_type == 'gpt2':
         model = GPT2LMHeadModel(GPT2Config(n_layer = config.n_layer, n_head = config.n_head))
 
-    if config.model_type == 'tiny_gpt2':
+    elif config.model_type == 'tiny_gpt2':
         model = GPT2LMHeadModel(GPT2Config(n_layer = 1, n_head = 1))
         
     # Buidl the long gpt model.
