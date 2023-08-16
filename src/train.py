@@ -43,7 +43,7 @@ signal.signal(signal.SIGTERM, handler_sigterm)
 # Parse arguments
 def get_config():
     parser = argparse.ArgumentParser()
-    parser.add_argument( '--lr', type=float, default = 0.01, help = 'Training learning rate.')
+    parser.add_argument( '--lr', type=float, default = 1e-7, help = 'Training learning rate.')
     parser.add_argument( '--bs', type=int, default = 8, help = 'Training batch size.')
     parser.add_argument( '--sl', type=int, default = 512, help = 'Training sequence length.')
     parser.add_argument( '--model_type', type = str, default = 'gpt2', help = "Model type to train")
