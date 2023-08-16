@@ -26,7 +26,7 @@ import argparse
 import traceback
 import bittensor as bt
 from datasets import load_dataset
-from transformers import GPT2TokenizerFast
+from transformers import GPT2TokenizerFast, AdamW, get_linear_schedule_with_warmup
 from torch.utils.data import DataLoader, IterableDataset
 
 # Pull in training reduce.
@@ -66,6 +66,8 @@ def get_config():
     parser.add_argument( '--name', type = str, default = 'pretrain', help = "Name of run." )
     parser.add_argument( '--chain_endpoint', type = str, default = "wss://test.finney.opentensor.ai", help="The chain endpoint to connect with." )
     parser.add_argument( '--device', type = str, default = "cuda" if torch.cuda.is_available() else "cpu", help="Device to train on." )
+    parser.add_argument( '--max_steps', type=int, default = 50000, help = 'Max training steps.')
+    parser.add_argument( '--num_warmup', type=int, default = 2000, help = 'Scheduler warm up steps.')
     bt.subtensor.add_args( parser )
     bt.wallet.add_args( parser )
     bt.axon.add_args( parser )
@@ -146,6 +148,8 @@ def main( config ):
         betas = (0.9, 0.95),
         fused = True if 'cuda' in config.device else False,
     )
+    optimizer = torch.optim.AdamW ( model.parameters(), lr = config.lr )
+    scheduler = get_linear_schedule_with_warmup( optimizer, num_warmup_steps=config.num_warmup, num_training_steps=config.max_steps ) 
     pass
 
     # Set up Bittensor
@@ -247,6 +251,7 @@ def main( config ):
 
                         # Apply gradient step.
                         optimizer.step()
+                        scheduler.step()
                         optimizer.zero_grad()
 
                         # Increment step.
