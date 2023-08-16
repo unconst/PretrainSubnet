@@ -55,7 +55,7 @@ def get_config():
     parser.add_argument( '--wandb', action="store_true", default = False, help = 'Turn on wandb')
     parser.add_argument( '--wandb_run_id', type = str, default = None, help="Set the wandb run for carry forward." )
     parser.add_argument( '--no_initial_sync', action="store_true", default = False, help = 'Turn off initial model sync.')
-    parser.add_argument( '--accs_per_step', type=int, default = 6, help = 'Number of training accumulation steps.')
+    parser.add_argument( '--accs_per_step', type=int, default = 10, help = 'Number of training accumulation steps.')
     parser.add_argument( '--epochs', type=int, default = 3, help = 'Number of training epochs.')
     parser.add_argument( '--steps_per_log', type=int, default = 1, help = 'Number of steps per log.')
     parser.add_argument( '--steps_per_sync', type=int, default = 100, help = 'Number of steps per chain sync.')
