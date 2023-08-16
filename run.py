@@ -127,7 +127,7 @@ def main():
                 bt.logging.success('No changes detected. Continuing.')
 
             # Wait.
-            time.sleep(random.randint(180, 181))  
+            time.sleep(random.randint(30, 60))  
 
         # Catch user stop.      
         except KeyboardInterrupt:
