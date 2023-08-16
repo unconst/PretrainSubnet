@@ -43,8 +43,7 @@ signal.signal(signal.SIGTERM, handler_sigterm)
 # Parse arguments
 def get_config():
     parser = argparse.ArgumentParser()
-    parser.add_argument( '--lr', type=float, default = 6e-4, help = 'Training learning rate.')
-    parser.add_argument( '--wd', type=float, default = 1e-1, help = 'Training weight decay.')
+    parser.add_argument( '--lr', type=float, default = 3e-4, help = 'Training learning rate.')
     parser.add_argument( '--bs', type=int, default = 8, help = 'Training batch size.')
     parser.add_argument( '--sl', type=int, default = 512, help = 'Training sequence length.')
     parser.add_argument( '--model_type', type = str, default = 'gpt2', help = "Model type to train")
@@ -60,14 +59,12 @@ def get_config():
     parser.add_argument( '--steps_per_log', type=int, default = 1, help = 'Number of steps per log.')
     parser.add_argument( '--steps_per_sync', type=int, default = 100, help = 'Number of steps per chain sync.')
     parser.add_argument( '--steps_per_eval', type=int, default = 125, help = 'Number of steps per eval.')
-    parser.add_argument( '--steps_per_reduce', type=int, default = 10, help = 'Number of steps reduce.')
+    parser.add_argument( '--steps_per_reduce', type=int, default = 10000, help = 'Number of steps reduce.')
     parser.add_argument( '--steps_per_set_weights', type=int, default = 400, help = 'Number of blocks before we set weights.')
     parser.add_argument( '--netuid', type = int, default = 1, help = "The chain subnet uid." )
     parser.add_argument( '--name', type = str, default = 'pretrain', help = "Name of run." )
     parser.add_argument( '--chain_endpoint', type = str, default = "wss://test.finney.opentensor.ai", help="The chain endpoint to connect with." )
     parser.add_argument( '--device', type = str, default = "cuda" if torch.cuda.is_available() else "cpu", help="Device to train on." )
-    parser.add_argument( '--max_steps', type=int, default = 50000, help = 'Max training steps.')
-    parser.add_argument( '--num_warmup', type=int, default = 2000, help = 'Scheduler warm up steps.')
     parser.add_argument( '--dataset_name', type = str, default = "legacy", help="Dataset to use." )
     bt.subtensor.add_args( parser )
     bt.wallet.add_args( parser )
@@ -161,15 +158,7 @@ def main( config ):
 
     # Get optimizer
     bt.logging.info( "setting up optimizer" )
-    optimizer = torch.optim.Adam(
-        params = model.parameters(),
-        lr = config.lr,
-        weight_decay = config.wd,
-        betas = (0.9, 0.95),
-        fused = True if 'cuda' in config.device else False,
-    )
     optimizer = torch.optim.AdamW ( model.parameters(), lr = config.lr )
-    scheduler = get_linear_schedule_with_warmup( optimizer, num_warmup_steps=config.num_warmup, num_training_steps=config.max_steps ) 
     pass
 
     # Set up Bittensor
@@ -282,7 +271,6 @@ def main( config ):
 
                         # Apply gradient step.
                         optimizer.step()
-                        scheduler.step()
                         optimizer.zero_grad()
 
                         # Increment step.
@@ -292,8 +280,18 @@ def main( config ):
                         if step % config.steps_per_log == 0:
                             perplexity = torch.exp(loss * config.accs_per_step).item()
                             loss = loss * config.accs_per_step
-                            bt.logging.info(f'Step {step}, Loss {loss}, Perplexity {perplexity}, Tokens {tokens} ')
-                            if config.wandb: wandb.log( {'step': step, 'loss': loss, 'perplexity': perplexity, 'tokens': tokens, 'spec': __init__.__spec_version__ } )
+                            bt.logging.info(f'Step {step}, Loss {loss}, Perplexity {perplexity}, Tokens {tokens}, spec {__init__.__spec_version__ }, run {None if not config.wandb_run_id else config.wandb_run_id}')
+                            if config.wandb: wandb.log( {
+                                'step': step, 
+                                'loss': loss, 
+                                'perplexity': perplexity, 
+                                'tokens': tokens, 
+                                'spec': __init__.__spec_version__, 
+                                'lr': config.lr, 
+                                'sl': config.sl, 
+                                'bs': config.bs, 
+                                'ac': config.accs_per_step
+                            })
 
                         # Sync chain state.
                         if step % config.steps_per_sync == 0 and not config.local:
