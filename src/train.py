@@ -49,7 +49,7 @@ def get_config():
     parser.add_argument( '--model_type', type = str, default = 'gpt2', help = "Model type to train")
     parser.add_argument( '--n_head', type=int, default = 12, help = 'Model number of attention heads')
     parser.add_argument( '--n_layer', type=int, default = 12, help = 'Number of gpt2 model layers')
-    parser.add_argument( '--load', action="store_true", default = False, help = 'Load local model instead of sync.')
+    parser.add_argument( '--load', action="store_false", default = False, help = 'Load local model instead of sync.')
     parser.add_argument( '--local', action="store_true", default = False, help = 'Turn on local training.')
     parser.add_argument( '--wandb', action="store_true", default = False, help = 'Turn on wandb')
     parser.add_argument( '--wandb_run_id', type = str, default = None, help="Set the wandb run for carry forward." )
@@ -233,12 +233,12 @@ def main( config ):
     for epoch in range(config.epochs):
         bt.logging.info( f'Epoch {epoch + 1}/{config.epochs}' )
         for batch in dataloader:
-            if not config.dataset_name:
+            if config.dataset_name != 'legacy':
                 batch = batch.to(device)
             with torch.autocast( device_type="cuda", enabled=True ):
                 try:
                     # Forward pass.
-                    if not config.dataset_name:
+                    if not config.dataset_name != 'legacy':
                         outputs = model( 
                             batch.to(device), 
                             labels = batch.to(device) 

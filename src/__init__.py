@@ -1,1 +1,1 @@
-__spec_version__ = 24
+__spec_version__ = 26
