@@ -51,42 +51,18 @@ class Process:
         """Check if the process is still running"""
         return self.process is not None and self.process.poll() is None
 
-def git_has_changes():
-    """
-    Function to check if there are any changes on the current git branch.
-    If changes are detected, it also re-installs the package.
-    """
-    current_branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).strip().decode('utf-8')
-    bt.logging.success(f'Checking git changes on {current_branch}' )
-
-    result = subprocess.run(['git', 'fetch'], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
-    if result.returncode != 0:
-        raise RuntimeError('Error fetching git updates')
-
-    result = subprocess.run(['git', 'diff', current_branch, 'origin/'+current_branch], stdout=subprocess.PIPE)
-
-    # If changes detected, re-install the package
-    if result.stdout != b'':
-        bt.logging.success(f'Reinstalling pretrain package with updates' )
-        subprocess.run([ sys.executable, '-m', 'pip', 'install', '-r', 'requirements.txt'], check=True)
-
-    return result.stdout != b''
-
-def git_pull():
-    """
-    Function to pull the latest changes from the current git branch.
-    """
-    bt.logging.success('Pulling git changes')
-    result = subprocess.run(['git', 'pull'], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
-    if result.returncode != 0:
-        raise RuntimeError('Error pulling git updates')
-
 def main():
     """
     Main function to start the process and continuously check for git changes.
     If changes are detected, pull them and restart the process.
     """
+    
+    # Get run state.
     wandb_run_id = wandb.util.generate_id()
+    branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).strip().decode('utf-8')
+    running_git_hash = subprocess.check_output(['git', 'rev-parse', f'origin/{current_branch}']).strip()
+
+    # Start process.
     bt.logging.success( f'Starting: {sys.executable} src/train.py --wandb_run_id {wandb_run_id} { sys.argv[1:] }' )
     p = Process([sys.executable, 'src/train.py', '--wandb_run_id', wandb_run_id ] + sys.argv[1:] , stdout=sys.stdout, stderr=sys.stderr)
     p.start()
@@ -100,10 +76,16 @@ def main():
                 p.restart()
 
             # Check if there are git changes on this local branch.
-            if git_has_changes():
+            lastest_git_hash = subprocess.check_output(['git', 'rev-parse', f'origin/{branch}']).strip()
+
+            # Check if the branch hash has changed, if it has, pull install and restart.
+            if lastest_git_hash != running_git_hash:
                 bt.logging.success('Changes detected. Pulling updates and restarting...')
-                git_pull()
+                subprocess.run(['git', 'fetch', f'origin/{branch}'], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+                subprocess.run(['git', 'pull', f'origin/{branch}'], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+                subprocess.run([ sys.executable, '-m', 'pip', 'install', '-r', 'requirements.txt'], check=True)
                 p.restart()
+                running_git_hash = lastest_git_hash
             
             # All good, continue.
             else:
