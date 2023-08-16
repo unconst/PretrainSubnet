@@ -59,6 +59,7 @@ def main():
     
     # Get run state.
     wandb_run_id = wandb.util.generate_id()
+    script_dir = os.path.dirname(os.path.abspath(__file__))
     branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).strip().decode('utf-8')
     running_git_hash = subprocess.check_output(['git', 'rev-parse', f'origin/{branch}']).strip()
 
@@ -83,12 +84,12 @@ def main():
                 bt.logging.success('Changes detected. Pulling updates and restarting...')
 
                 # Fetch the latest changes.
-                fetch_result = subprocess.run(['git', 'fetch'], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+                fetch_result = subprocess.run(['git', 'fetch'], cwd = script_dir, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
                 if fetch_result.returncode != 0:
                     bt.logging.error(fetch_result.stderr.decode())
 
                 # Pull the latest changes.
-                pull_result = subprocess.run(['git', 'pull'], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+                pull_result = subprocess.run(['git', 'pull'], cwd = script_dir, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
                 if pull_result.returncode != 0:
                     bt.logging.error(pull_result.stderr.decode())
 
