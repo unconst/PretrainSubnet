@@ -66,7 +66,7 @@ def get_config():
     parser.add_argument( '--device', type = str, default = "cuda" if torch.cuda.is_available() else "cpu", help="Device to train on." )
     parser.add_argument( '--max_steps', type=int, default = 50000, help = 'Max training steps.')
     parser.add_argument( '--num_warmup', type=int, default = 2000, help = 'Scheduler warm up steps.')
-    parser.add_argument( '--dataset_name', type = str, default = "pile", help="Dataset to use." )
+    parser.add_argument( '--dataset_name', type = str, default = "red", help="Dataset to use." )
     bt.subtensor.add_args( parser )
     bt.wallet.add_args( parser )
     bt.axon.add_args( parser )
