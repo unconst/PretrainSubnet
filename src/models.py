@@ -46,10 +46,10 @@ def make_model( config ):
     
     # Build the normal gpt2 model.
     if config.model_type == 'gpt2':
-        model = GPT2LMHeadModel.from_pretrained(GPT2Config(n_layer = config.n_layer, n_head = config.n_head))
+        model = GPT2LMHeadModel(GPT2Config(n_layer = config.n_layer, n_head = config.n_head))
 
     if config.model_type == 'tiny_gpt2':
-        model = GPT2LMHeadModel.from_pretrained(GPT2Config(n_layer = 1, n_head = 1))
+        model = GPT2LMHeadModel(GPT2Config(n_layer = 1, n_head = 1))
         
     # Buidl the long gpt model.
     elif config.model_type == 'long_gpt':
