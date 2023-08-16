@@ -40,7 +40,7 @@ class Process:
     def stop(self):
         """Stop an existing process"""
         if self.process:
-            self.process.send_signal(signal.SIGINT)
+            self.process.send_signal(signal.SIGTERM)
             self.process.wait()
             self.process = None
 
