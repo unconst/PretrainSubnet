@@ -94,21 +94,29 @@ def main():
                 stash_result = subprocess.run(['git', 'stash'], cwd = script_dir, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
                 if stash_result.returncode != 0:
                     bt.logging.error(stash_result.stderr.decode())
+                else:
+                    bt.logging.success( 'Called stash with output', stash_result.stdout )
 
                 # Fetch the latest changes.
                 fetch_result = subprocess.run(['git', 'fetch'], cwd = script_dir, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
                 if fetch_result.returncode != 0:
                     bt.logging.error(fetch_result.stderr.decode())
+                else:
+                    bt.logging.success( 'Called fetch with output', fetch_result.stdout )
 
                 # Pull the latest changes.
                 pull_result = subprocess.run(['git', 'pull'], cwd = script_dir, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
                 if pull_result.returncode != 0:
                     bt.logging.error(pull_result.stderr.decode())
+                else:
+                    bt.logging.success( 'Called pull with output', pull_result.stdout )
 
                 # Insall the local changes.
-                install_result = subprocess.run([ sys.executable, '-m', 'pip', 'install', '-r', 'requirements.txt'], check=True)
+                install_result = subprocess.run([ sys.executable, '-m', 'pip', 'install', '-r', 'requirements.txt'], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
                 if install_result.returncode != 0:
                     bt.logging.error(install_result.stderr.decode())
+                else:
+                    bt.logging.success( 'Called install with output', install_result.stdout )
 
                 # Restart the script.
                 p.restart()
