@@ -43,7 +43,7 @@ signal.signal(signal.SIGTERM, handler_sigterm)
 # Parse arguments
 def get_config():
     parser = argparse.ArgumentParser()
-    parser.add_argument( '--lr', type=float, default = 3e-4, help = 'Training learning rate.')
+    parser.add_argument( '--lr', type=float, default = 3e-5, help = 'Training learning rate.')
     parser.add_argument( '--bs', type=int, default = 8, help = 'Training batch size.')
     parser.add_argument( '--sl', type=int, default = 512, help = 'Training sequence length.')
     parser.add_argument( '--model_type', type = str, default = 'gpt2', help = "Model type to train")
@@ -65,7 +65,7 @@ def get_config():
     parser.add_argument( '--name', type = str, default = 'pretrain', help = "Name of run." )
     parser.add_argument( '--chain_endpoint', type = str, default = "wss://test.finney.opentensor.ai", help="The chain endpoint to connect with." )
     parser.add_argument( '--device', type = str, default = "cuda" if torch.cuda.is_available() else "cpu", help="Device to train on." )
-    parser.add_argument( '--dataset_name', type = str, default = "legacy", help="Dataset to use." )
+    parser.add_argument( '--dataset_name', type = str, default = "pile", help="Dataset to use." )
     bt.subtensor.add_args( parser )
     bt.wallet.add_args( parser )
     bt.axon.add_args( parser )
