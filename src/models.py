@@ -19,6 +19,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.backends.cuda as cuda
+from transformers import GPT2LMHeadModel, GPT2Config
 from transformers.models.gpt2.modeling_gpt2 import GPT2LMHeadModel, GPT2Attention
 
 # patch GPT2Attention to use flash_sdp, disable it when doing the inference
@@ -41,27 +42,37 @@ def _attn_wrapper(self, query, key, value, attention_mask=None, head_mask=None):
         ).float()
     return attn_out, None
 
-def make_model( max_tokens ):
-    model = GPT2LMHeadModel.from_pretrained('gpt2')
-    # GPT2Attention._attn = _attn_wrapper
-    # model.config.update(
-    #     dict(
-    #         n_ctx = max_tokens,
-    #         n_positions = max_tokens,
-    #     )
-    # )
-    # # patch model embeddings
-    # emb = model.transformer.wpe.weight.data
-    # wpe = nn.Embedding( max_tokens, emb.shape[1])
-    # wpe.weight.data = emb.repeat( max_tokens // emb.shape[0], 1)
-    # model.transformer.wpe = wpe
+def make_model( config ):
+    
+    # Build the normal gpt2 model.
+    if config.model_type == 'gpt2':
+        model = GPT2LMHeadModel.from_pretrained(GPT2Config(n_layer = config.n_layer, n_head = config.n_head))
 
-    # # also increase mask size
-    # for block in model.transformer.h:
-    #     block.attn.bias.data = (
-    #         torch.tril(torch.ones(( max_tokens, max_tokens), dtype=torch.bool))
-    #         .view(1, 1, max_tokens, max_tokens)
-    #         .cuda()
-    #     )
+    if config.model_type == 'tiny_gpt2':
+        model = GPT2LMHeadModel.from_pretrained(GPT2Config(n_layer = 1, n_head = 1))
+        
+    # Buidl the long gpt model.
+    elif config.model_type == 'long_gpt':
+        GPT2Attention._attn = _attn_wrapper
+        model.config.update(
+            dict(
+                n_ctx = config.sl,
+                n_positions = config.sl,
+            )
+        )
+        # patch model embeddings
+        emb = model.transformer.wpe.weight.data
+        wpe = nn.Embedding( config.sl, emb.shape[1])
+        wpe.weight.data = emb.repeat( config.sl // emb.shape[0], 1)
+        model.transformer.wpe = wpe
 
+        # also increase mask size
+        for block in model.transformer.h:
+            block.attn.bias.data = (
+                torch.tril(torch.ones(( config.sl, config.sl), dtype=torch.bool))
+                .view(1, 1, config.sl, config.sl)
+                .cuda()
+            )
+    else:
+        raise RuntimeError(f"{config.model_type} is not a valid type.")
     return model

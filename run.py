@@ -85,8 +85,8 @@ def main():
     Main function to start the process and continuously check for git changes.
     If changes are detected, pull them and restart the process.
     """
-    bt.logging.success( f'Starting: python src/train.py { sys.argv[1:] }' )
-    p = Process(['python', 'src/train.py'] + sys.argv[1:] , stdout=sys.stdout, stderr=sys.stderr)
+    bt.logging.success( f'Starting: {sys.executable} src/train.py { sys.argv[1:] }' )
+    p = Process([sys.executable, 'src/train.py'] + sys.argv[1:] , stdout=sys.stdout, stderr=sys.stderr)
     p.start()
     
     try:
@@ -107,8 +107,8 @@ def main():
             else:
                 bt.logging.success('No changes detected. Continuing.')
 
-            # Wait 2 minutes.
-            time.sleep(random.randint(60, 60 * 3))
+            # Wait (3 minutes -≥ 9 minutes)
+            time.sleep(random.randint(180, 180 * 3))
 
     except KeyboardInterrupt:
         # Log and stop both processes.

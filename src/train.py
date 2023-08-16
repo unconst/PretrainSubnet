@@ -40,7 +40,7 @@ def get_config():
     parser.add_argument( '--wd', type=float, default = 1e-1, help = 'Training weight decay.')
     parser.add_argument( '--bs', type=int, default = 4, help = 'Training batch size.')
     parser.add_argument( '--sl', type=int, default = 1024, help = 'Training sequence length.')
-    parser.add_argument( '--max_tokens', type=int, default = 1024, help = 'Maximum number of training tokens.')
+    parser.add_argument( '--model_type', type = str, default = 'gpt2', help = "Model type to train")
     parser.add_argument( '--n_head', type=int, default = 12, help = 'Model number of attention heads')
     parser.add_argument( '--n_layer', type=int, default = 12, help = 'Number of gpt2 model layers')
     parser.add_argument( '--load', action="store_true", default = False, help = 'Load local model instead of sync.')
@@ -97,7 +97,7 @@ def main( config ):
     device = torch.device(config.device)
     tokenizer = GPT2TokenizerFast.from_pretrained('gpt2')
     tokenizer.pad_token = tokenizer.eos_token
-    model = models.make_model( config.max_tokens )
+    model = models.make_model( config )
     model.to(device).train()
     pass
 
@@ -107,7 +107,7 @@ def main( config ):
         torch.save(model.state_dict(), config.full_path + '/model.pt')
     def load_model():
         bt.logging.info( f"loading model from {config.full_path}/model.pt" )
-        model = models.make_model( config.max_tokens )
+        model = models.make_model( config )
         model.load_state_dict(torch.load(config.full_path + '/model.pt'))
         return model
 
@@ -116,21 +116,21 @@ def main( config ):
         model = load_model().to(device).train()
 
     class PileDataset(IterableDataset):
-        def __init__(self, tokenizer, max_tokens ):
+        def __init__(self, tokenizer, sequence_length ):
             self.tokenizer = tokenizer
-            self.max_tokens = max_tokens
+            self.sequence_length = sequence_length
         def __iter__(self):
             buffer = []
             for sample in load_dataset( "EleutherAI/pile", name="all", split="train", streaming=True ).shuffle(buffer_size=10_000):
                 buffer += self.tokenizer(sample["text"])["input_ids"]
                 buffer += [self.tokenizer.eos_token_id]
-                while len(buffer) > self.max_tokens:
-                    yield torch.tensor(buffer[: self.max_tokens])
-                    buffer = buffer[self.max_tokens :]
+                while len(buffer) > self.sequence_length:
+                    yield torch.tensor(buffer[: self.sequence_length])
+                    buffer = buffer[self.sequence_length :]
 
     # Load the dataloader.
     bt.logging.info( "setting up dataloader" )
-    pile_dataset = PileDataset( tokenizer = tokenizer, max_tokens = config.max_tokens )
+    pile_dataset = PileDataset( tokenizer = tokenizer, sequence_length = config.sl )
     dataloader = DataLoader( pile_dataset, batch_size = config.bs, num_workers = 8 )
     pass
 
