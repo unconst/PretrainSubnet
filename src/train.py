@@ -167,7 +167,7 @@ def main( config ):
             mode = "online",
             tags=[wallet.hotkey.ss58_address, wallet.coldkeypub.ss58_address],
             dir = config.full_path,
-            run_id = None if not config.wandb_run_id else config.wandb_run_id,
+            id = None if not config.wandb_run_id else config.wandb_run_id,
             resume = "allow" if config.wandb_run_id else False
         )
 
