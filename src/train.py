@@ -20,7 +20,6 @@ import os
 import sys
 import math
 import torch
-import wandb
 import argparse
 import traceback
 import bittensor as bt
@@ -37,7 +36,7 @@ import benchmark as benchmark
 # Parse arguments
 def get_config():
     parser = argparse.ArgumentParser()
-    parser.add_argument( '--lr', type=float, default = 5e-6, help = 'Training learning rate.')
+    parser.add_argument( '--lr', type=float, default = 5e-5, help = 'Training learning rate.')
     parser.add_argument( '--wd', type=float, default = 1e-1, help = 'Training weight decay.')
     parser.add_argument( '--bs', type=int, default = 4, help = 'Training batch size.')
     parser.add_argument( '--sl', type=int, default = 1024, help = 'Training sequence length.')
@@ -165,6 +164,7 @@ def main( config ):
 
     # Set up wandb
     if config.wandb:
+        import wandb
         bt.logging.info( "setting up wandb" )
         wandb = wandb.init(
             anonymous = "allow",
