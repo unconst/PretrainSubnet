@@ -254,20 +254,20 @@ def main( config ):
                             batch.to(device), 
                             labels = batch.to(device) 
                         ) 
+                        tokens += batch.numel()
                     else:
-                         outputs = model(
+                        outputs = model(
                             input_ids = batch["input_ids"].to(device), 
                             attention_mask = batch["attention_mask"].to(device),
                             labels = batch["input_ids"].to(device)
                         ) 
+                        tokens += batch["input_ids"].numel()
                     
                     # Backward pass
                     loss = outputs.loss / config.accs_per_step
                     loss.backward()
 
                     # Increment token count.
-                    tokens += batch.numel()
-
                     # Update weights for miner.
                     if last_merge_axon:
                         if last_merge_axon.hotkey in moving_average_scores:
