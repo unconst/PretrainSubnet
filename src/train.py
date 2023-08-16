@@ -57,7 +57,7 @@ def get_config():
     parser.add_argument( '--mock', action="store_true", default = False, help = 'Turn on mocking.')
     parser.add_argument( '--self_query', action="store_true", default = False, help = 'Query only yourself.')
     parser.add_argument( '--max_k', type=int, default = 1, help = 'Max number of gradients to merge.')
-    parser.add_argument( '--accs_per_step', type=int, default = 60, help = 'Number of training accumulation steps.')
+    parser.add_argument( '--accs_per_step', type=int, default = 6, help = 'Number of training accumulation steps.')
     parser.add_argument( '--epochs', type=int, default = 3, help = 'Number of training epochs.')
     parser.add_argument( '--steps_per_log', type=int, default = 1, help = 'Number of steps per log.')
     parser.add_argument( '--steps_per_sync', type=int, default = 100, help = 'Number of steps per chain sync.')
@@ -144,7 +144,7 @@ def main( config ):
     # Get optimizer
     bt.logging.info( "setting up optimizer" )
     optimizer = torch.optim.Adam(
-        params=model.parameters(),
+        params = model.parameters(),
         lr = config.lr,
         weight_decay = config.wd,
         betas = (0.9, 0.95),
