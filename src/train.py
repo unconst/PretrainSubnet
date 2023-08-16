@@ -238,7 +238,7 @@ def main( config ):
             with torch.autocast( device_type="cuda", enabled=True ):
                 try:
                     # Forward pass.
-                    if not config.dataset_name != 'legacy':
+                    if config.dataset_name != 'legacy':
                         outputs = model( 
                             batch.to(device), 
                             labels = batch.to(device) 
