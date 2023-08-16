@@ -15,7 +15,7 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-__spec_version__ = '0.0.3'
+__spec_version__ = '0.0.4'
 
 import os
 import sys
@@ -122,6 +122,10 @@ def main():
         # Log and stop both processes.
         bt.logging.success('Interrupted by user. Exiting.')
         p.stop()
+
+    # Loop stopped.
+    bt.logging.success('Interrupted by user. Exiting.')
+    p.stop()
 
 if __name__ == '__main__':
     main()
