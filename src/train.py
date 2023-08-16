@@ -15,7 +15,7 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-__spec_version__ = 6
+__spec_version__ = 7
 
 # Imports
 import os
@@ -64,7 +64,7 @@ def get_config():
     parser.add_argument( '--steps_per_log', type=int, default = 1, help = 'Number of steps per log.')
     parser.add_argument( '--steps_per_sync', type=int, default = 100, help = 'Number of steps per chain sync.')
     parser.add_argument( '--steps_per_eval', type=int, default = 125, help = 'Number of steps per eval.')
-    parser.add_argument( '--steps_per_reduce', type=int, default = 100, help = 'Number of steps reduce.')
+    parser.add_argument( '--steps_per_reduce', type=int, default = 10000, help = 'Number of steps reduce.')
     parser.add_argument( '--steps_per_set_weights', type=int, default = 400, help = 'Number of blocks before we set weights.')
     parser.add_argument( '--netuid', type = int, default = 1, help = "The chain subnet uid." )
     parser.add_argument( '--name', type = str, default = 'pretrain', help = "Name of run." )
@@ -262,8 +262,8 @@ def main( config ):
                         if step % config.steps_per_log == 0:
                             perplexity = torch.exp(loss * config.accs_per_step).item()
                             loss = loss * config.accs_per_step
-                            bt.logging.info(f'Step {step}, Loss {loss}, Perplexity {perplexity}, Tokens {tokens}, __spec_version__: {__spec_version__}  ')
-                            if config.wandb: wandb.log( {'step': step, 'loss': loss, 'perplexity': perplexity, 'tokens': tokens, '__spec_version__': __spec_version__ } )
+                            bt.logging.info(f'Step {step}, Loss {loss}, Perplexity {perplexity}, Tokens {tokens}, V: {__spec_version__}  ')
+                            if config.wandb: wandb.log( {'step': step, 'loss': loss, 'perplexity': perplexity, 'tokens': tokens, 'V': __spec_version__ } )
 
                         # Sync chain state.
                         if step % config.steps_per_sync == 0 and not config.local:
