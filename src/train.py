@@ -259,8 +259,8 @@ def main( config ):
                         if step % config.steps_per_log == 0:
                             perplexity = torch.exp(loss * config.accs_per_step).item()
                             loss = loss * config.accs_per_step
-                            bt.logging.info(f'Step {step}, Loss {loss}, Perplexity {perplexity}, Tokens {tokens}, V: {__spec_version__}  ')
-                            if config.wandb: wandb.log( {'step': step, 'loss': loss, 'perplexity': perplexity, 'tokens': tokens, 'V': __spec_version__ } )
+                            bt.logging.info(f'Step {step}, Loss {loss}, Perplexity {perplexity}, Tokens {tokens} ')
+                            if config.wandb: wandb.log( {'step': step, 'loss': loss, 'perplexity': perplexity, 'tokens': tokens )
 
                         # Sync chain state.
                         if step % config.steps_per_sync == 0 and not config.local:
