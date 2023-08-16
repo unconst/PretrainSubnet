@@ -32,6 +32,12 @@ import reduce as reduce
 import models as models
 import benchmark as benchmark
 
+# Exception handling for sigterm.
+import signal
+class SigTermException( Exception ):pass
+def handler_sigterm( signum, frame ): raise SigTermException("Received SIGTERM")
+signal.signal(signal.SIGTERM, handler_sigterm)
+
 # Parse arguments
 def get_config():
     parser = argparse.ArgumentParser()
@@ -312,6 +318,13 @@ def main( config ):
                 except RuntimeError as e:
                     bt.logging.error(e)
                     traceback.print_exc()
+
+                # Catch SigTermException
+                except SigTermException:
+                    bt.logging.info("Caugh SIGTERM")
+                    if config.wandb:
+                        wandb.finish()
+                    exit()
             
                 # Catch keyboard interrupt.
                 except KeyboardInterrupt:
