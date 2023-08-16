@@ -321,7 +321,7 @@ def main( config ):
 
                 # Catch SigTermException
                 except SigTermException:
-                    bt.logging.info("Caugh SIGTERM")
+                    bt.logging.info("Caught SIGTERM")
                     if config.wandb:
                         wandb.finish()
                     exit()
