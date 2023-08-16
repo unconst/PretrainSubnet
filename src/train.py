@@ -213,6 +213,7 @@ def main( config ):
 
     # Training vars.
     step = 0 # Global step.
+    tokens = 0 # total tokens seen.
     alpha = 0.9 # Moving average coefficient for weights.
     best_eval = math.inf # Best loss seen so far.
     accumulation_counter = 0 # Counter for gradient accumulation.
@@ -231,6 +232,9 @@ def main( config ):
                     # Backward pass
                     loss = outputs.loss / config.accs_per_step
                     loss.backward()
+
+                    # Increment token count.
+                    tokens += batch.numel()
 
                     # Update weights for miner.
                     if last_merge_axon:
@@ -256,8 +260,8 @@ def main( config ):
                         if step % config.steps_per_log == 0:
                             perplexity = torch.exp(loss * config.accs_per_step).item()
                             loss = loss * config.accs_per_step
-                            bt.logging.info(f'Step {step}, Loss {loss}, Perplexity {perplexity}')
-                            if config.wandb: wandb.log( {'step': step, 'loss': loss, 'perplexity': perplexity } )
+                            bt.logging.info(f'Step {step}, Loss {loss}, Perplexity {perplexity}, Tokens {tokens} ')
+                            if config.wandb: wandb.log( {'step': step, 'loss': loss, 'perplexity': perplexity, 'tokens': tokens } )
 
                         # Sync chain state.
                         if step % config.steps_per_sync == 0 and not config.local:
