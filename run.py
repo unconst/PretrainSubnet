@@ -81,9 +81,15 @@ def main():
             # Check if the branch hash has changed, if it has, pull install and restart.
             if lastest_git_hash != running_git_hash:
                 bt.logging.success('Changes detected. Pulling updates and restarting...')
-                subprocess.run(['git', 'fetch'], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
-                subprocess.run(['git', 'pull'], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
-                subprocess.run([ sys.executable, '-m', 'pip', 'install', '-r', 'requirements.txt'], check=True)
+                fetch_result = subprocess.run(['git', 'fetch'], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+                if fetch_result.returncode != 0:
+                    print(fetch_result.stderr.decode())
+                pull_result = subprocess.run(['git', 'pull'], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+                if pull_result.returncode != 0:
+                    print(pull_result.stderr.decode())
+                install_result = subprocess.run([ sys.executable, '-m', 'pip', 'install', '-r', 'requirements.txt'], check=True)
+                if install_result.returncode != 0:
+                    print(install_result.stderr.decode())
                 p.restart()
                 running_git_hash = lastest_git_hash
             
