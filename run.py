@@ -83,6 +83,11 @@ def main():
             if lastest_git_hash != running_git_hash:
                 bt.logging.success('Changes detected. Pulling updates and restarting...')
 
+                # Stash the local changes.
+                stash_result = subprocess.run(['git', 'stash'], cwd = script_dir, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+                if stash_result.returncode != 0:
+                    bt.logging.error(stash_result.stderr.decode())
+
                 # Fetch the latest changes.
                 fetch_result = subprocess.run(['git', 'fetch'], cwd = script_dir, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
                 if fetch_result.returncode != 0:
