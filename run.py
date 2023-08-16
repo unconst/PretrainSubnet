@@ -15,6 +15,8 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
+__spec_version__ = '0.0.3'
+
 import os
 import sys
 import time
@@ -68,10 +70,13 @@ def main():
     # Start process.
     bt.logging.success( f'Starting: {sys.executable} src/train.py --wandb_run_id {wandb_run_id} { sys.argv[1:] }' )
     p = Process([sys.executable, 'src/train.py', '--wandb_run_id', wandb_run_id ] + sys.argv[1:] , stdout=sys.stdout, stderr=sys.stderr)
-    p.start()
+    p.start()        
     
-    try:
-        while True:
+    # Endless loop until killed.
+    while True:
+
+        # Catch errors in the below script.
+        try:
 
             # Check if the process is still running
             if not p.is_alive():
@@ -113,17 +118,20 @@ def main():
             else:
                 bt.logging.success('No changes detected. Continuing.')
 
-            # Wait (3 minutes -≥ 9 minutes)
-            time.sleep(random.randint(180, 181))
+            # Wait.
+            time.sleep(random.randint(180, 181))  
 
-    except KeyboardInterrupt:
-        # Log and stop both processes.
-        bt.logging.success('Interrupted by user. Exiting.')
-        p.stop()
+        # Catch user stop.      
+        except KeyboardInterrupt:
+            # Log and stop both processes.
+            bt.logging.success('Interrupted by user. Exiting.')
+            p.stop()
+            break
 
-    # Loop stopped.
-    bt.logging.success('Interrupted by user. Exiting.')
-    p.stop()
+        # Catch other errors.
+        except Exception as e:
+            bt.logging.error(f'Saw uncaught error {e}')
+            continue
 
 if __name__ == '__main__':
     main()
