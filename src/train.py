@@ -41,7 +41,7 @@ signal.signal(signal.SIGTERM, handler_sigterm)
 # Parse arguments
 def get_config():
     parser = argparse.ArgumentParser()
-    parser.add_argument( '--lr', type=float, default = 3e-4, help = 'Training learning rate.')
+    parser.add_argument( '--lr', type=float, default = 6e-4, help = 'Training learning rate.')
     parser.add_argument( '--wd', type=float, default = 1e-1, help = 'Training weight decay.')
     parser.add_argument( '--bs', type=int, default = 8, help = 'Training batch size.')
     parser.add_argument( '--sl', type=int, default = 512, help = 'Training sequence length.')
