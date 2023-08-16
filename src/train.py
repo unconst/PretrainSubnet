@@ -20,6 +20,7 @@ import os
 import sys
 import math
 import torch
+import random
 import argparse
 import traceback
 import bittensor as bt
@@ -66,7 +67,7 @@ def get_config():
     parser.add_argument( '--device', type = str, default = "cuda" if torch.cuda.is_available() else "cpu", help="Device to train on." )
     parser.add_argument( '--max_steps', type=int, default = 50000, help = 'Max training steps.')
     parser.add_argument( '--num_warmup', type=int, default = 2000, help = 'Scheduler warm up steps.')
-    parser.add_argument( '--dataset_name', type = str, default = "red", help="Dataset to use." )
+    parser.add_argument( '--dataset_name', type = str, default = "legacy", help="Dataset to use." )
     bt.subtensor.add_args( parser )
     bt.wallet.add_args( parser )
     bt.axon.add_args( parser )
@@ -144,8 +145,16 @@ def main( config ):
 
     # Load the dataloader.
     bt.logging.info( "setting up dataloader" )
-    pile_dataset = Dataset( dataset_name = config.dataset_name, tokenizer = tokenizer, sequence_length = config.sl )
-    dataloader = DataLoader( pile_dataset, batch_size = config.bs, num_workers = 8 )
+    if config.dataset_name == 'legacy':
+        def tokenize_function(examples):
+            return tokenizer(examples["text"], truncation = True, padding = "max_length", max_length = config.sl, return_tensors = "pt")
+        dataset = load_dataset("togethercomputer/RedPajama-Data-1T", 'default', split='train', streaming=True)
+        dataset = dataset.shuffle(buffer_size = config.bs * 4, seed = random.randint(0, 1000))
+        tokenized_dataset = dataset.map( tokenize_function, batched=True )
+        dataloader = DataLoader( tokenized_dataset, batch_size = config.bs)
+    else:
+        pile_dataset = Dataset( dataset_name = config.dataset_name, tokenizer = tokenizer, sequence_length = config.sl )
+        dataloader = DataLoader( pile_dataset, batch_size = config.bs, num_workers = 8 )
     pass
 
     # Get optimizer
