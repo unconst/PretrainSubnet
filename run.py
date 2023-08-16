@@ -72,6 +72,7 @@ def main():
 
     # Get spec version
     running_spec_version = get_current_spec_version()
+    bt.logging.success( f'Current spec version: {running_spec_version}')
 
     # Start process.
     bt.logging.success( f'Starting: {sys.executable} src/train.py --wandb_run_id {wandb_run_id} { sys.argv[1:] }' )
@@ -116,9 +117,11 @@ def main():
 
             # Check if there are git changes on this local branch.
             latest_spec_version = get_current_spec_version()
+            bt.logging.success( f'Current spec version: {latest_spec_version}')
+
             if latest_spec_version != running_spec_version:
-                
                 # Change current.
+                bt.logging.success( f'Changes detected: {latest_spec_version} != {running_spec_version}')
                 running_spec_version = latest_spec_version
 
                 # Insall the local changes.
