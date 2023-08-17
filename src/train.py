@@ -219,7 +219,7 @@ def main ( config ):
                 ) 
             
                 # Count tokens.
-                tokens += batch["input_ids"].numel()
+                tokens += batch.numel()
 
                 
                 # Backward pass
