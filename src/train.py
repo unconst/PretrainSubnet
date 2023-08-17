@@ -18,7 +18,7 @@ import reduce
 
 # If turned on, restarts begin from the last checkpoint model.
 # Otherwise they start from the initial randomized weights of the model.
-LOAD = False 
+LOAD = True 
 
 # Parse arguments
 def get_config():
@@ -26,6 +26,7 @@ def get_config():
     parser.add_argument( '--lr', type=float, default = 1e-4, help = 'Training learning rate.')
     parser.add_argument( '--bs', type=int, default = 4, help = 'Training batch size.')
     parser.add_argument( '--sl', type=int, default = 1024, help = 'Training sequence length.')
+    parser.add_argument( '--dp', type=float, default = 0.1, help = 'Model dropout probability.')
     parser.add_argument( '--n_head', type=int, default = 12, help = 'Model number of attention heads')
     parser.add_argument( '--n_layer', type=int, default = 12, help = 'Number of gpt2 model layers')
     parser.add_argument( '--load', action="store_true", default = False, help = 'Load local model instead of sync.')
@@ -86,7 +87,12 @@ def main ( config ):
         torch.save(model.state_dict(), config.full_path + '/model.pt')
     def load_model():
         bt.logging.info( f"loading model from {config.full_path}/model.pt" )
-        model = GPT2LMHeadModel(GPT2Config(n_layer = config.n_layer, n_head = config.n_head))
+        model = GPT2LMHeadModel(GPT2Config(
+            n_layer = config.n_layer, 
+            n_head = config.n_head,
+            resid_pdrop = config.dp,
+            embd_pdrop = config.dp
+        ))
         model.load_state_dict(torch.load(config.full_path + '/model.pt'))
         model.to(config.device).train()
         return model
