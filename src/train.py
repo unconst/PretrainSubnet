@@ -23,7 +23,7 @@ LOAD = True
 # Parse arguments
 def get_config():
     parser = argparse.ArgumentParser()
-    parser.add_argument( '--lr', type=float, default = 3e-4, help = 'Training learning rate.')
+    parser.add_argument( '--lr', type=float, default = 1e-4, help = 'Training learning rate.')
     parser.add_argument( '--bs', type=int, default = 4, help = 'Training batch size.')
     parser.add_argument( '--sl', type=int, default = 1024, help = 'Training sequence length.')
     parser.add_argument( '--n_head', type=int, default = 12, help = 'Model number of attention heads')
