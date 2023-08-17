@@ -77,7 +77,14 @@ def main ( config ):
     bt.logging.info( "setting up model" )
     tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
     tokenizer.pad_token = tokenizer.eos_token
-    model = GPT2LMHeadModel(GPT2Config(n_layer = config.n_layer, n_head = config.n_head))
+    model = GPT2LMHeadModel(
+        GPT2Config(
+            n_layer = config.n_layer, 
+            n_head = config.n_head,
+            resid_pdrop = config.dp,
+            embd_pdrop = config.dp
+        )
+    )
     model.to(config.device).train()
     pass
 
