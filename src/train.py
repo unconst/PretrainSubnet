@@ -202,7 +202,7 @@ def main ( config ):
     step = 0 # Global step.
     tokens = 0 # total tokens seen.
     alpha = 0.9 # Moving average coefficient for weights.
-    best_loss = math.inf # Best loss seen so far.
+    best_eval = math.inf # Best loss seen so far.
     accumulation_counter = 0 # Counter for gradient accumulation.
     moving_average_scores = {} # Map from hotkey to loss.
 
@@ -266,13 +266,6 @@ def main ( config ):
 
                     # Increment step.
                     step += 1
-
-                    # Check if our model has beaten the current best.
-                    if loss < best_loss:
-                        bt.logging.debug( f"New best loss: {loss}" )
-                        # Save the model as the best we have.
-                        save_model( model )
-                        best_loss = loss
 
                     # Check if we need to sync based on blocks passed since last sync.
                     current_block = subtensor.block
@@ -347,6 +340,9 @@ def main ( config ):
                         eval_perplexity = torch.exp(torch.stack(nlls).mean())
                         bt.logging.success(f'Eval perplexity: {eval_perplexity.item()}')
                         if config.wandb: wandb.log( {'eval_perplexity': eval_perplexity.item() } )
+                        if eval_perplexity < best_eval:
+                            best_eval = eval_perplexity
+                            save_model( model )
 
             # Catch unknown errors.
             except RuntimeError as e:
