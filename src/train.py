@@ -18,7 +18,7 @@ import reduce
 
 # If turned on, restarts begin from the last checkpoint model.
 # Otherwise they start from the initial randomized weights of the model.
-LOAD = True 
+LOAD = False 
 
 # Parse arguments
 def get_config():
@@ -34,7 +34,7 @@ def get_config():
     parser.add_argument( '--wandb_run_id', type = str, default = None, help="Set the wandb run for carry forward." )
     parser.add_argument( '--no_initial_sync', action="store_true", default = False, help = 'Turn off initial model sync.')
     parser.add_argument( '--max_steps', type=int, default = 50000, help = 'Max training steps.')
-    parser.add_argument( '--accs_per_step', type=int, default = 5, help = 'Number of training accumulation steps.')
+    parser.add_argument( '--accs_per_step', type=int, default = 10, help = 'Number of training accumulation steps.')
     parser.add_argument( '--steps_per_log', type=int, default = 1, help = 'Number of steps per log.')
     parser.add_argument( '--steps_per_sync', type=int, default = 100, help = 'Number of steps per chain sync.')
     parser.add_argument( '--steps_per_eval', type=int, default = 50, help = 'Number of steps per eval.')
