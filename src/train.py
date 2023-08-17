@@ -3,6 +3,7 @@ import os
 import sys
 import math
 import torch
+import time
 import wandb
 import argparse
 import traceback
@@ -221,7 +222,7 @@ def main ( config ):
                 # Forward pass.
                 outputs = model(
                     input_ids = batch.to(config.device), 
-                    # attention_mask = batch["attention_mask"].to(device),
+                    attention_mask = batch["attention_mask"].to(config.device),
                     labels = batch.to(config.device)
                 ) 
             
