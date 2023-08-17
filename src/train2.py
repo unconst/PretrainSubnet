@@ -24,7 +24,7 @@ import reduce
 def parse_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument( '--lr', type=float, default = 3e-4, help = 'Training learning rate.')
-    parser.add_argument( '--bs', type=int, default = 6, help = 'Training batch size.')
+    parser.add_argument( '--bs', type=int, default = 4, help = 'Training batch size.')
     parser.add_argument( '--sl', type=int, default = 1024, help = 'Training sequence length.')
     parser.add_argument( '--n_head', type=int, default = 12, help = 'Model number of attention heads')
     parser.add_argument( '--n_layer', type=int, default = 12, help = 'Number of gpt2 model layers')
