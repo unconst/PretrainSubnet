@@ -15,7 +15,7 @@ from tqdm import tqdm
 from datasets import load_dataset
 from torch.nn import functional as F
 from torch.utils.data import DataLoader, IterableDataset
-from transformers import GPT2TokenizerFast, GPT2LMHeadModel, GPT2Config, GPT2Tokenizer, AdamW, get_linear_schedule_with_warmup
+from transformers import GPT2LMHeadModel, GPT2Config, GPT2Tokenizer, AdamW, get_linear_schedule_with_warmup
 
 # Pull in training reduce.
 import __init__
