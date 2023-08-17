@@ -222,7 +222,6 @@ def main ( config ):
                 # Forward pass.
                 outputs = model(
                     input_ids = batch.to(config.device), 
-                    attention_mask = batch["attention_mask"].to(config.device),
                     labels = batch.to(config.device)
                 ) 
             
