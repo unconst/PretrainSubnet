@@ -39,8 +39,8 @@ def get_config():
     parser.add_argument( '--steps_per_log', type=int, default = 1, help = 'Number of steps per log.')
     parser.add_argument( '--steps_per_sync', type=int, default = 100, help = 'Number of steps per chain sync.')
     parser.add_argument( '--steps_per_eval', type=int, default = 50, help = 'Number of steps per eval.')
-    parser.add_argument( '--blocks_per_reduce', type=int, default = 10, help = 'Number of steps reduce.')
-    parser.add_argument( '--blocks_per_set_weights', type=int, default = 100, help = 'Number of blocks before we set weights.')
+    parser.add_argument( '--steps_per_reduce', type=int, default = 10, help = 'Number of steps reduce.')
+    parser.add_argument( '--steps_per_set_weights', type=int, default = 10000, help = 'Number of blocks before we set weights.')
     parser.add_argument( '--num_warmup', type=int, default = 2000, help = 'Scheduler warm up steps.')
     parser.add_argument( '--netuid', type = int, default = 1, help = "The chain subnet uid." )
     parser.add_argument( '--name', type = str, default = 'pretrain', help = "Name of run." )
@@ -240,7 +240,6 @@ def main ( config ):
                 # Count tokens.
                 tokens += batch.numel()
 
-                
                 # Backward pass
                 loss = outputs.loss / config.accs_per_step
                 loss.backward()
@@ -287,17 +286,15 @@ def main ( config ):
                     step += 1
 
                     # Check if we need to sync based on blocks passed since last sync.
-                    current_block = subtensor.block
-                    if current_block - last_sync_block > config.blocks_per_reduce and not config.local:
-                        bt.logging.info( f"Reducing model at block {current_block}" )
+                    if step % config.steps_per_reduce == 0 and not config.local:
+                        bt.logging.info( f"Reducing model." )
                         # Perform the reduction
                         success, last_merge_axon = reduce.reduce(model, dendrite, metagraph)
-                        last_sync_block = current_block
                         bt.logging.info( f"Reduced with axon {last_merge_axon}" )
 
                     # Check if we should set weights after this point.
-                    if current_block - last_set_weights > config.blocks_per_set_weights and not config.local:
-                        bt.logging.info( f"Setting weights on chain at block {current_block}" )
+                    if step % config.steps_per_set_weights == 0 and not config.local:
+                        bt.logging.info( f"Setting weights on chain." )
                         # Create weights tensor.
                         weights = torch.zeros_like( metagraph.uids, dtype = torch.float32 )
                         for uid in metagraph.uids:
@@ -315,9 +312,7 @@ def main ( config ):
                             uids = metagraph.uids, 
                             weights = weights
                         )
-                        last_set_weights = current_block
-                        bt.logging.info( f"Set weights on chain at block {current_block}" )
-
+                        bt.logging.info( f"Set weights on chain." )
 
                     # Run eval online.
                     if step % config.steps_per_eval == 0:
