@@ -16,6 +16,10 @@ from transformers import GPT2LMHeadModel, GPT2Config, GPT2Tokenizer, AdamW, get_
 import __init__
 import reduce
 
+# If turned on, restarts begin from the last checkpoint model.
+# Otherwise they start from the initial randomized weights of the model.
+LOAD = True 
+
 # Parse arguments
 def get_config():
     parser = argparse.ArgumentParser()
@@ -88,8 +92,8 @@ def main ( config ):
         return model
 
     # Optionally load model from disk.
-    #if config.load:
-    #    model = load_model().to(config.device).train()
+    if LOAD:
+        model = load_model().to(config.device).train()
 
     class Dataset(IterableDataset):
         def __init__(self, dataset_name:str, tokenizer, sequence_length ):
@@ -174,12 +178,14 @@ def main ( config ):
     # Pull latest weights.
     last_merge_axon = None
     if not config.local and not config.no_initial_sync and not config.load:
+        bt.logging.info( "Pulling initial weights from others." )
         is_first = True
         tries = 0
         while tries < 5:
             # Reduce model weights with random.
             success, last_merge_axon = reduce.reduce( model, dendrite, metagraph, replace = True, allow_self = not is_first )
             if success:
+                bt.logging.success( f"Pulling weights from: {last_merge_axon}" )
                 break
             else: 
                 is_first = False
