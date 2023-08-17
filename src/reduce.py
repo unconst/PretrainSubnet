@@ -61,6 +61,7 @@ def reduce(
         model: 'torch.nn.Module', 
         dendrite: 'bittensor.dendrite', 
         metagraph: 'bittensor.metagraph', 
+        reduce_alpha: float = 0.5,
         replace: bool = False, 
         allow_self: bool = False 
     ) -> bool:
@@ -91,9 +92,9 @@ def reduce(
     to_query = random.choice(online)
 
     # Reduce with the selected axon.
-    return reduce_with_axon(model, dendrite, to_query, replace=replace), to_query
+    return reduce_with_axon(model, dendrite, to_query, reduce_alpha = reduce_alpha, replace=replace), to_query
 
-def reduce_with_axon(model, dendrite, axon, replace:bool = False) -> bool:
+def reduce_with_axon(model, dendrite, axon, reduce_alpha: float = 0.5, replace:bool = False) -> bool:
     """
     Function to fetch the parameters of a selected axon, validate them,
     and if valid, average the model's parameters with the fetched parameters.
@@ -122,22 +123,19 @@ def reduce_with_axon(model, dendrite, axon, replace:bool = False) -> bool:
     else:
         bt.logging.debug("Valid state dict received from axon.")
 
-    def compute_euclidean_distance(tensor1, tensor2):
-        return torch.sqrt(torch.sum((tensor1 - tensor2) ** 2)).item()
-
     if replace:
         # Replace the model's parameters with the received parameters.
         model.load_state_dict(state_dict)
 
     else:
         # Average the model's parameters with the received parameters.
-        average_state_dict(model, state_dict)
+        average_state_dict(model, state_dict, reduce_alpha = reduce_alpha)
 
     # Log that the parameter averaging is complete.
     bt.logging.info("All reduce successful.")
     return True
 
-def average_state_dict( model, state_dict ):
+def average_state_dict( model, state_dict, reduce_alpha: float = 0.5 ):
     """
     This function averages the parameters of a PyTorch model with a given state_dict.
 
@@ -154,7 +152,7 @@ def average_state_dict( model, state_dict ):
         if name in state_dict:
             remote_param = state_dict[name].clone().to(model.device)
             local_param = local_state_dict[name].clone().to(model.device)
-            merged_state_dict[name] = (local_param.data + remote_param.data) / 2
+            merged_state_dict[name] = ( 1 - reduce_alpha ) * local_param.data + reduce_alpha * remote_param.data
 
     # Set the state dict in the model.
     model.load_state_dict( merged_state_dict )

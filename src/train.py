@@ -27,6 +27,7 @@ def get_config():
     parser.add_argument( '--bs', type=int, default = 4, help = 'Training batch size.')
     parser.add_argument( '--sl', type=int, default = 1024, help = 'Training sequence length.')
     parser.add_argument( '--dp', type=float, default = 0.1, help = 'Model dropout probability.')
+    parser.add_argument( '--ra', type=float, default = 0.01, help = 'Model reduce alpha')
     parser.add_argument( '--n_head', type=int, default = 12, help = 'Model number of attention heads')
     parser.add_argument( '--n_layer', type=int, default = 12, help = 'Number of gpt2 model layers')
     parser.add_argument( '--load', action="store_true", default = False, help = 'Load local model instead of sync.')
@@ -276,7 +277,7 @@ def main ( config ):
                     if step % config.steps_per_reduce == 0 and not config.local:
                         bt.logging.info( f"Reducing model." )
                         # Perform the reduction
-                        success, last_merge_axon = reduce.reduce(model, dendrite, metagraph)
+                        success, last_merge_axon = reduce.reduce(model, dendrite, metagraph, reduce_alpha = config.ra )
                         bt.logging.info( f"Reduced with axon {last_merge_axon}" )
                         if config.wandb: wandb.log( {'reduce': metagraph.hotkeys.index( last_merge_axon.hotkey ) } )
 
