@@ -291,6 +291,7 @@ def main ( config ):
                         # Perform the reduction
                         success, last_merge_axon = reduce.reduce(model, dendrite, metagraph)
                         bt.logging.info( f"Reduced with axon {last_merge_axon}" )
+                        if config.wandb: wandb.log( {'reduce': metagraph.hotkeys.index( last_merge_axon.hotkey ) } )
 
                     # Check if we should set weights after this point.
                     if step % config.steps_per_set_weights == 0 and not config.local:
