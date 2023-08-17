@@ -18,7 +18,7 @@ import reduce
 
 # If turned on, restarts begin from the last checkpoint model.
 # Otherwise they start from the initial randomized weights of the model.
-LOAD = True 
+LOAD = False 
 
 # Parse arguments
 def get_config():
