@@ -76,7 +76,7 @@ def main():
 
     # Start process.
     bt.logging.success( f'Starting: {sys.executable} src/train.py --wandb_run_id {wandb_run_id} { sys.argv[1:] }' )
-    p = Process([sys.executable, 'src/train2.py', '--wandb_run_id', wandb_run_id ] + sys.argv[1:] , stdout=sys.stdout, stderr=sys.stderr)
+    p = Process([sys.executable, 'src/train.py', '--wandb_run_id', wandb_run_id ] + sys.argv[1:] , stdout=sys.stdout, stderr=sys.stderr)
     p.start()        
     
     # Endless loop until killed.
