@@ -31,11 +31,8 @@ def parse_arguments():
     parser.add_argument( '--load', action="store_true", default = False, help = 'Load local model instead of sync.')
     parser.add_argument( '--local', action="store_true", default = True, help = 'Turn on local training.')
     parser.add_argument( '--wandb', action="store_true", default = False, help = 'Turn on wandb')
-    parser.add_argument( '--validator', action="store_true", default = False, help = 'Turn on validating')
+    parser.add_argument( '--wandb_run_id', type = str, default = None, help="Set the wandb run for carry forward." )
     parser.add_argument( '--no_initial_sync', action="store_true", default = False, help = 'Turn off initial model sync.')
-    parser.add_argument( '--mock', action="store_true", default = False, help = 'Turn on mocking.')
-    parser.add_argument( '--self_query', action="store_true", default = False, help = 'Query only yourself.')
-    parser.add_argument( '--max_k', type=int, default = 1, help = 'Max number of gradients to merge.')
     parser.add_argument( '--max_steps', type=int, default = 50000, help = 'Max training steps.')
     parser.add_argument( '--accs_per_step', type=int, default = 5, help = 'Number of training accumulation steps.')
     parser.add_argument( '--steps_per_log', type=int, default = 1, help = 'Number of steps per log.')
@@ -46,6 +43,8 @@ def parse_arguments():
     parser.add_argument( '--num_warmup', type=int, default = 2000, help = 'Scheduler warm up steps.')
     parser.add_argument( '--netuid', type = int, default = 1, help = "The chain subnet uid." )
     parser.add_argument( '--name', type = str, default = 'pretrain', help = "Name of run." )
+    parser.add_argument( '--device', type = str, default = "cuda" if torch.cuda.is_available() else "cpu", help="Device to train on." )
+    parser.add_argument( '--dataset_name', type = str, default = "pile", help="Dataset to use." )
     parser.add_argument( '--chain_endpoint', type = str, default = "wss://test.finney.opentensor.ai", help="The chain endpoint to connect with." )
     bt.subtensor.add_args( parser )
     bt.wallet.add_args( parser )
@@ -72,22 +71,11 @@ bt.logging.info( config )
 pass
 
 # Setup model and tokenizer
-def setup_model_and_tokenizer():
-    if not config.mock:
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
-        tokenizer.pad_token = tokenizer.eos_token
-        model = GPT2LMHeadModel(GPT2Config(n_layer = config.n_layer, n_head = config.n_head))
-    else:
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
-        tokenizer.pad_token = tokenizer.eos_token
-        model = GPT2LMHeadModel(GPT2Config(n_layer = 1, n_head = 1))
-    return model, tokenizer, device
-
 bt.logging.info( "setting up model" )
-model, tokenizer, device = setup_model_and_tokenizer()
-model.to(device).train()
+tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
+tokenizer.pad_token = tokenizer.eos_token
+model = GPT2LMHeadModel(GPT2Config(n_layer = config.n_layer, n_head = config.n_head))
+model.to(config.device).train()
 pass
 
 # Save + load model.
@@ -96,13 +84,14 @@ def save_model( model ):
     torch.save(model.state_dict(), config.full_path + '/model.pt')
 def load_model():
     bt.logging.info( f"loading model from {config.full_path}/model.pt" )
-    model, _, _ = setup_model_and_tokenizer()
+    model = GPT2LMHeadModel(GPT2Config(n_layer = config.n_layer, n_head = config.n_head))
     model.load_state_dict(torch.load(config.full_path + '/model.pt'))
+    model.to(config.device).train()
     return model
 
 # Optionally load model from disk.
 if config.load:
-    model = load_model().to(device).train()
+    model = load_model().to(config.device).train()
 
 class Dataset(IterableDataset):
     def __init__(self, dataset_name:str, tokenizer, sequence_length ):
@@ -127,7 +116,7 @@ class Dataset(IterableDataset):
                 buffer = buffer[self.sequence_length :]
 
 bt.logging.info( "setting up dataloader" )
-dataset = Dataset( dataset_name = "pile", tokenizer = tokenizer, sequence_length = config.sl )
+dataset = Dataset( dataset_name = config.dataset_name, tokenizer = tokenizer, sequence_length = config.sl )
 dataloader = DataLoader( dataset, batch_size = config.bs, num_workers = 8 )
 pass
 
@@ -155,8 +144,10 @@ if config.wandb:
         entity = "opentensor-dev",
         config = config,
         mode = "online",
-        tags=[wallet.hotkey.ss58_address, wallet.coldkeypub.ss58_address],
+        tags = [wallet.hotkey.ss58_address, wallet.coldkeypub.ss58_address],
         dir = config.full_path,
+        id = None if not config.wandb_run_id else config.wandb_run_id,
+        resume = "allow" if config.wandb_run_id else False
     )
 
 # Register our wallet, serve our axon, get our uid.
@@ -222,9 +213,9 @@ for epoch in range(3):
         try:
             # Forward pass.
             outputs = model(
-                input_ids = batch.to(device), 
+                input_ids = batch.to(config.device), 
                 # attention_mask = batch["attention_mask"].to(device),
-                labels = batch.to(device)
+                labels = batch.to(config.device)
             ) 
             
             # Backward pass
@@ -320,7 +311,7 @@ for epoch in range(3):
                     for begin_loc in tqdm(range(0, seq_len, stride)):
                         end_loc = min(begin_loc + max_length, seq_len)
                         trg_len = end_loc - prev_end_loc  # may be different from stride on last loop
-                        input_ids = encodings.input_ids[:, begin_loc:end_loc].to(device)
+                        input_ids = encodings.input_ids[:, begin_loc:end_loc].to(config.device)
                         target_ids = input_ids.clone()
                         target_ids[:, :-trg_len] = -100
 
