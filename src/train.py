@@ -277,7 +277,7 @@ def main ( config ):
                     if step % config.steps_per_reduce == 0 and not config.local:
                         bt.logging.info( f"Reducing model." )
                         # Perform the reduction
-                        success, last_merge_axon = reduce.reduce(model, dendrite, metagraph, reduce_alpha = config.ra )
+                        success, last_merge_axon = reduce.reduce( model, dendrite, metagraph, reduce_alpha = config.ra )
                         bt.logging.info( f"Reduced with axon {last_merge_axon}" )
                         if config.wandb: wandb.log( {'reduce': metagraph.hotkeys.index( last_merge_axon.hotkey ) } )
 
