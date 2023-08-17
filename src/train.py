@@ -88,8 +88,8 @@ def main ( config ):
         return model
 
     # Optionally load model from disk.
-    if config.load:
-        model = load_model().to(config.device).train()
+    #if config.load:
+    #    model = load_model().to(config.device).train()
 
     class Dataset(IterableDataset):
         def __init__(self, dataset_name:str, tokenizer, sequence_length ):
