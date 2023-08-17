@@ -4,16 +4,11 @@ import sys
 import math
 import torch
 import wandb
-import random
-import asyncio
-import threading
 import argparse
 import traceback
-import torch.nn as nn
 import bittensor as bt
 from tqdm import tqdm
 from datasets import load_dataset
-from torch.nn import functional as F
 from torch.utils.data import DataLoader, IterableDataset
 from transformers import GPT2LMHeadModel, GPT2Config, GPT2Tokenizer, AdamW, get_linear_schedule_with_warmup
 
@@ -140,6 +135,7 @@ def main ( config ):
 
     # Set up wandb
     if config.wandb:
+        import wandb
         bt.logging.info( "setting up wandb" )
         wandb = wandb.init(
             anonymous = "allow",
