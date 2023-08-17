@@ -148,7 +148,7 @@ def main ( config ):
     dendrite = bt.dendrite( wallet = wallet )
     axon = bt.axon( wallet = wallet, config = config )
     metagraph = subtensor.metagraph( config.netuid )
-    last_set_weights = subtensor.block
+    my_uid = metagraph.hotkeys.index( wallet.hotkey.ss58_address )
 
     # Set up wandb
     if config.wandb:
@@ -176,18 +176,6 @@ def main ( config ):
         my_uid = metagraph.hotkeys.index( wallet.hotkey.ss58_address )
         bt.logging.info( f"registered and served with uid: {my_uid}" )
 
-    # Set up chain connection.
-    def chain_sync():
-        bt.logging.info( "Syncing chain state." )
-        global metagraph
-        global subtensor
-        global my_uid
-        metagraph = subtensor.metagraph( config.netuid )
-        my_uid = metagraph.hotkeys.index( wallet.hotkey.ss58_address )
-        if config.wandb: wandb.log( { "R": metagraph.R[my_uid], 'S': metagraph.S[my_uid], 'E': metagraph.E[my_uid], 'D': metagraph.D[my_uid], 'I':  metagraph.I[my_uid]} )
-    if not config.local:
-        chain_sync()
-
     # Pull latest weights.
     last_merge_axon = None
     if not config.local and not config.no_initial_sync and not config.load:
@@ -204,7 +192,6 @@ def main ( config ):
                 is_first = False
                 tries += 1 
                 # Sync chain state and try again.
-                chain_sync()
                 continue
 
     # Record the last sync block.
@@ -280,7 +267,7 @@ def main ( config ):
 
                     # Sync chain state.
                     if step % config.steps_per_sync == 0 and not config.local:
-                        chain_sync()
+                        metagraph = subtensor.metagraph( config.netuid )
 
                     # Increment step.
                     step += 1
